@@ -1,0 +1,37 @@
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Output of the go coverage tool
+*.out
+
+# IDE and editor directories
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Go specific
+# Binaries
+/bin/
+/build/
+/dist/
+
+# Vendor dependencies
+/vendor/
+
+# Dependency directories (remove the comment if you use Go modules)
+# /pkg/
+
+# Logs
+*.log
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Application-specific
+*.env
