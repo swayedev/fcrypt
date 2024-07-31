@@ -6,6 +6,7 @@ Fcrypt is a flexible and secure encryption package for Go, providing easy-to-use
 
 - Encrypt and decrypt data with AES-GCM.
 - Stream encryption and decryption.
+- Encrypt large data and files in chunks.
 - Key rotation and re-encryption support.
 - Extensible key management with an interface for different key types.
 - Hashing functions using SHA3-256.
@@ -133,6 +134,54 @@ func main() {
 }
 ```
 
+### Encrypting and Decrypting Large Data Files
+
+Fcrypt supports encrypting and decrypting large data files in chunks:
+
+```go
+package main
+
+import (
+    "log"
+    "os"
+
+    "github.com/swayedev/fcrypt"
+)
+
+func main() {
+    passphrase := "your-secure-passphrase"
+
+    // Generate salt
+    salt, err := fcrypt.GenerateSalt(16)
+    if err != nil {
+        log.Fatalf("Failed to generate salt: %v", err)
+    }
+
+    // Generate key
+    key, err := fcrypt.GenerateKey(passphrase, salt, fcrypt.DefaultKeyLength)
+    if err != nil {
+        log.Fatalf("Failed to generate key: %v", err)
+    }
+
+    // Open file to encrypt
+    inputFile, err := os.Open("largefile.txt")
+    if err != nil {
+        log.Fatalf("Failed to open file: %v", err)
+    }
+    defer inputFile.Close()
+
+    // Encrypt file
+    if err := fcrypt.EncryptFileToFile(inputFile, key, 4096, "largefile.encrypted"); err != nil {
+        log.Fatalf("Failed to encrypt file: %v", err)
+    }
+
+    // Decrypt file
+    if err := fcrypt.DecryptFileToFile("largefile.encrypted", "largefile.decrypted", key, 4096); err != nil {
+        log.Fatalf("Failed to decrypt file: %v", err)
+    }
+}
+```
+
 ### Key Rotation and Re-Encryption
 
 Fcrypt also supports key rotation and re-encryption:
@@ -235,8 +284,13 @@ func main() {
 - `DefaultKeyLength`: Default length for keys (32 bytes).
 - `ScryptN`, `ScryptR`, `ScryptP`: Parameters for the scrypt key derivation function.
 - `MinNonceSize`: Minimum nonce size (12 bytes).
+- `GCMNonceSize`: Size of the nonce used in GCM mode.
 - `ErrCiphertextTooShort`: Error message for short ciphertext.
 - `ErrKeyLengthTooShort`: Error message for short key length.
+- `ErrFailedToCreateCipher`: Error message for failing to create a cipher.
+- `ErrFailedToCreateGCM`: Error message for failing to create GCM.
+- `ErrFailedToCreateFile`: Error message for failing to create a file.
+- `ErrFailedToReadData`: Error message for failing to read data.
 
 ### Functions
 
@@ -245,10 +299,14 @@ func main() {
 - `GenerateGCM(key []byte) (cipher.AEAD, cipher.Block, error)`: Generates a GCM cipher.
 - `Encrypt(data []byte, key []byte) ([]byte, error)`: Encrypts data.
 - `Decrypt(data []byte, key []byte) ([]byte, error)`: Decrypts data.
-- `ReEncrypt(data []byte, oldKey []byte, newKey []byte) ([]byte, error)`: Re-encrypts data with a new key.
+- `ReEncrypt(data []byte, oldKey []byte, newKey
+
+ []byte) ([]byte, error)`: Re-encrypts data with a new key.
 - `StreamEncrypt(data io.Reader, key []byte) (io.Reader, error)`: Encrypts data stream.
 - `StreamDecrypt(data io.Reader, key []byte) (io.Reader, error)`: Decrypts data stream.
 - `StreamReEncrypt(data io.Reader, oldKey []byte, newKey []byte) (io.Reader, error)`: Re-encrypts data stream with a new key.
+- `EncryptFileToFile(data io.Reader, key []byte, chunkSize int, filePath string) error`: Encrypts data from a reader and writes it to a file.
+- `DecryptFileToFile(encryptedFilePath, decryptedFilePath string, key []byte, chunkSize int) error`: Decrypts data from an encrypted file and writes it to a new file.
 - `HashStringToString(data string) string`: Hashes a string and returns a hexadecimal string.
 - `HashString(data string) [32]byte`: Hashes a string and returns a 32-byte array.
 - `HashByte(data []byte) [32]byte`: Hashes a byte slice and returns a 32-byte array.
@@ -269,4 +327,3 @@ Current version: 0.1.0
 ## Authors
 
 - Swaye Chateau (swayechateau) - Initial work
-
