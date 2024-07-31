@@ -327,3 +327,7 @@ Current version: 0.1.0
 ## Authors
 
 - Swaye Chateau (swayechateau) - Initial work
+
+## Changelog
+
+Detailed changes for each version are documented in the [CHANGELOG.md](CHANGELOG.md) file.
