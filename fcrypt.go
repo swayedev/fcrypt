@@ -6,7 +6,9 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"io"
+	"os"
 
 	"golang.org/x/crypto/scrypt"
 	"golang.org/x/crypto/sha3"
@@ -44,15 +46,32 @@ func (k *FcryptKey) KeyBytes() []byte {
 	return k.key
 }
 
+// Constants and errors
 const (
-	MinKeyLength          = 16
-	DefaultKeyLength      = 32
-	ScryptN               = 32768
-	ScryptR               = 8
-	ScryptP               = 1
-	MinNonceSize          = 12
-	ErrCiphertextTooShort = "ciphertext too short"
-	ErrKeyLengthTooShort  = "key length too short"
+	// MinKeyLength is the minimum length of the encryption key in bytes.
+	MinKeyLength = 16
+	// DefaultKeyLength is the default length of the encryption key in bytes.
+	DefaultKeyLength = 32
+	// ScryptN is the CPU/memory cost parameter for scrypt.
+	ScryptN = 32768
+	// ScryptR is the block size parameter for scrypt.
+	ScryptR = 8
+	// ScryptP is the parallelization parameter for scrypt.
+	ScryptP = 1
+	// MinNonceSize is the minimum size of the nonce in bytes.
+	MinNonceSize = 12
+	// GCMNonceSize is the size of the nonce used in GCM mode.
+	GCMNonceSize = 12
+)
+
+// Error variables
+var (
+	ErrCiphertextTooShort   = errors.New("ciphertext too short")
+	ErrKeyLengthTooShort    = errors.New("key length too short")
+	ErrFailedToCreateCipher = errors.New("failed to create new cipher")
+	ErrFailedToCreateGCM    = errors.New("failed to create new GCM")
+	ErrFailedToCreateFile   = errors.New("failed to create file")
+	ErrFailedToReadData     = errors.New("failed to read data")
 )
 
 // Encrypt encrypts the given data using the provided key and returns the encrypted result.
@@ -81,7 +100,7 @@ func Decrypt(data []byte, key []byte) ([]byte, error) {
 	}
 
 	if len(data) < gcm.NonceSize() {
-		return nil, errors.New(ErrCiphertextTooShort)
+		return nil, ErrCiphertextTooShort
 	}
 
 	nonce, ciphertext := data[:gcm.NonceSize()], data[gcm.NonceSize():]
@@ -97,6 +116,126 @@ func ReEncrypt(data []byte, oldKey []byte, newKey []byte) ([]byte, error) {
 	}
 
 	return Encrypt(decryptedData, newKey)
+}
+
+// EncryptChunk encrypts the given plaintext using the provided block cipher and nonce.
+// It returns the ciphertext and an error, if any.
+func EncryptChunk(block cipher.Block, plaintext []byte, nonce []byte) ([]byte, error) {
+	aesgcm, err := cipher.NewGCM(block)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %v", ErrFailedToCreateGCM, err)
+	}
+
+	return aesgcm.Seal(nil, nonce, plaintext, nil), nil
+}
+
+// EncryptFileToFile encrypts the data from the given reader using the provided key and writes it to the specified file.
+// The encryption is done in chunks of the specified size. It uses AES encryption with GCM mode.
+// The function returns an error if any operation fails.
+func EncryptFileToFile(data io.Reader, key []byte, chunkSize int, filePath string) error {
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return fmt.Errorf("%w: %v", ErrFailedToCreateCipher, err)
+	}
+
+	file, err := os.Create(filePath)
+	if err != nil {
+		return fmt.Errorf("%w: %v", ErrFailedToCreateFile, err)
+	}
+	defer file.Close()
+
+	chunk := make([]byte, chunkSize)
+	nonce := make([]byte, GCMNonceSize) // 12 bytes nonce for GCM
+
+	for {
+		n, err := data.Read(chunk)
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return fmt.Errorf("%w: %v", ErrFailedToReadData, err)
+		}
+
+		if _, err := rand.Read(nonce); err != nil {
+			return fmt.Errorf("%w: %v", ErrFailedToReadData, err)
+		}
+
+		encryptedChunk, err := EncryptChunk(block, chunk[:n], nonce)
+		if err != nil {
+			return fmt.Errorf("%w: %v", ErrFailedToCreateGCM, err)
+		}
+
+		// Write nonce and encrypted chunk to file
+		if _, err := file.Write(nonce); err != nil {
+			return fmt.Errorf("%w: %v", ErrFailedToCreateFile, err)
+		}
+		if _, err := file.Write(encryptedChunk); err != nil {
+			return fmt.Errorf("%w: %v", ErrFailedToCreateFile, err)
+		}
+	}
+
+	return nil
+}
+
+// DecryptChunk decrypts an encrypted chunk of data using the provided block cipher, nonce, and encrypted chunk.
+// It returns the decrypted data or an error if decryption fails.
+func DecryptChunk(block cipher.Block, encryptedChunk []byte, nonce []byte) ([]byte, error) {
+	aesgcm, err := cipher.NewGCM(block)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %v", ErrFailedToCreateGCM, err)
+	}
+
+	return aesgcm.Open(nil, nonce, encryptedChunk, nil)
+}
+
+// DecryptFileToFile decrypts the contents of an encrypted file and writes the decrypted data to a new file.
+// It takes the path of the encrypted file, the path of the decrypted file, the encryption key, and the chunk size as parameters.
+// The function reads the encrypted file in chunks, decrypts each chunk using AES-GCM encryption, and writes the decrypted data to the new file.
+// It returns an error if any operation fails.
+func DecryptFileToFile(encryptedFilePath, decryptedFilePath string, key []byte, chunkSize int) error {
+	encryptedFile, err := os.Open(encryptedFilePath)
+	if err != nil {
+		return fmt.Errorf("%w: %v", ErrFailedToCreateFile, err)
+	}
+	defer encryptedFile.Close()
+
+	decryptedFile, err := os.Create(decryptedFilePath)
+	if err != nil {
+		return fmt.Errorf("%w: %v", ErrFailedToCreateFile, err)
+	}
+	defer decryptedFile.Close()
+
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return fmt.Errorf("%w: %v", ErrFailedToCreateCipher, err)
+	}
+
+	nonceSize := GCMNonceSize // 12 bytes nonce for GCM
+	chunk := make([]byte, chunkSize+nonceSize)
+
+	for {
+		n, err := encryptedFile.Read(chunk)
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return fmt.Errorf("%w: %v", ErrFailedToReadData, err)
+		}
+
+		nonce := chunk[:nonceSize]
+		encryptedChunk := chunk[nonceSize:n]
+
+		decryptedChunk, err := DecryptChunk(block, encryptedChunk, nonce)
+		if err != nil {
+			return fmt.Errorf("%w: %v", ErrFailedToCreateGCM, err)
+		}
+
+		if _, err := decryptedFile.Write(decryptedChunk); err != nil {
+			return fmt.Errorf("%w: %v", ErrFailedToCreateFile, err)
+		}
+	}
+
+	return nil
 }
 
 // StreamEncrypt takes an input data stream and a key, and returns an encrypted data stream along with any error encountered.
@@ -175,7 +314,7 @@ func GenerateSalt(length int) ([]byte, error) {
 func GenerateKey(passphrase string, salt []byte, keyLength int) ([]byte, error) {
 	// check if the key length is valid
 	if keyLength <= MinKeyLength {
-		return nil, errors.New(ErrKeyLengthTooShort)
+		return nil, ErrKeyLengthTooShort
 	}
 	keyBytes, err := scrypt.Key([]byte(passphrase), salt, ScryptN, ScryptR, ScryptP, keyLength)
 	if err != nil {
