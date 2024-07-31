@@ -8,6 +8,7 @@ Fcrypt is a flexible and secure encryption package for Go, providing easy-to-use
 - Stream encryption and decryption.
 - Key rotation and re-encryption support.
 - Extensible key management with an interface for different key types.
+- Hashing functions using SHA3-256.
 
 ## Installation
 
@@ -191,17 +192,51 @@ func main() {
 }
 ```
 
+### Hashing Functions
+
+Fcrypt includes hashing functions using SHA3-256:
+
+```go
+package main
+
+import (
+    "fmt"
+
+    "github.com/swayedev/fcrypt"
+)
+
+func main() {
+    data := "Sensitive data here"
+
+    // Hash string to string
+    hashedString := fcrypt.HashStringToString(data)
+    fmt.Printf("Hashed string: %s\n", hashedString)
+
+    // Hash string to byte array
+    hashedArray := fcrypt.HashString(data)
+    fmt.Printf("Hashed array: %x\n", hashedArray)
+
+    // Hash byte slice
+    hashedBytes := fcrypt.HashByte([]byte(data))
+    fmt.Printf("Hashed bytes: %x\n", hashedBytes)
+}
+```
+
 ## API Reference
 
 ### Types
 
 - `Key`: Interface for handling encryption keys.
-- `ScryptKey`: Implementation of the `Key` interface using scrypt.
+- `FcryptKey`: Implementation of the `Key` interface using scrypt.
 
 ### Constants
 
+- `MinKeyLength`: Minimum key length (16 bytes).
 - `DefaultKeyLength`: Default length for keys (32 bytes).
 - `ScryptN`, `ScryptR`, `ScryptP`: Parameters for the scrypt key derivation function.
+- `MinNonceSize`: Minimum nonce size (12 bytes).
+- `ErrCiphertextTooShort`: Error message for short ciphertext.
+- `ErrKeyLengthTooShort`: Error message for short key length.
 
 ### Functions
 
@@ -214,6 +249,9 @@ func main() {
 - `StreamEncrypt(data io.Reader, key []byte) (io.Reader, error)`: Encrypts data stream.
 - `StreamDecrypt(data io.Reader, key []byte) (io.Reader, error)`: Decrypts data stream.
 - `StreamReEncrypt(data io.Reader, oldKey []byte, newKey []byte) (io.Reader, error)`: Re-encrypts data stream with a new key.
+- `HashStringToString(data string) string`: Hashes a string and returns a hexadecimal string.
+- `HashString(data string) [32]byte`: Hashes a string and returns a 32-byte array.
+- `HashByte(data []byte) [32]byte`: Hashes a byte slice and returns a 32-byte array.
 - `RotateKey(passphrase string, store map[string]Key, keyLength int) (string, error)`: Rotates the encryption key.
 
 ## License

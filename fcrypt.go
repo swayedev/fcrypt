@@ -12,15 +12,6 @@ import (
 	"golang.org/x/crypto/sha3"
 )
 
-const (
-	DefaultKeyLength      = 32
-	ScryptN               = 32768
-	ScryptR               = 8
-	ScryptP               = 1
-	MinNonceSize          = 12
-	ErrCiphertextTooShort = "ciphertext too short"
-)
-
 // Key interface to provide methods for handling encryption keys
 type Key interface {
 	Version() string
@@ -30,28 +21,39 @@ type Key interface {
 }
 
 // ScryptKey struct implements the Key interface
-type ScryptKey struct {
+type FcryptKey struct {
 	version string
 	salt    []byte
 	algo    string
 	key     []byte
 }
 
-func (k *ScryptKey) Version() string {
+func (k *FcryptKey) Version() string {
 	return k.version
 }
 
-func (k *ScryptKey) Salt() []byte {
+func (k *FcryptKey) Salt() []byte {
 	return k.salt
 }
 
-func (k *ScryptKey) Algo() string {
+func (k *FcryptKey) Algo() string {
 	return k.algo
 }
 
-func (k *ScryptKey) KeyBytes() []byte {
+func (k *FcryptKey) KeyBytes() []byte {
 	return k.key
 }
+
+const (
+	MinKeyLength          = 16
+	DefaultKeyLength      = 32
+	ScryptN               = 32768
+	ScryptR               = 8
+	ScryptP               = 1
+	MinNonceSize          = 12
+	ErrCiphertextTooShort = "ciphertext too short"
+	ErrKeyLengthTooShort  = "key length too short"
+)
 
 // Encrypt encrypts the given data using the provided key and returns the encrypted result.
 // It uses the GCM mode of operation for encryption.
@@ -79,7 +81,7 @@ func Decrypt(data []byte, key []byte) ([]byte, error) {
 	}
 
 	if len(data) < gcm.NonceSize() {
-		return nil, errors.New("ciphertext too short")
+		return nil, errors.New(ErrCiphertextTooShort)
 	}
 
 	nonce, ciphertext := data[:gcm.NonceSize()], data[gcm.NonceSize():]
@@ -171,7 +173,11 @@ func GenerateSalt(length int) ([]byte, error) {
 // The key length specifies the desired length of the generated key in bytes.
 // Returns the generated key as a byte slice and any error encountered during the key generation process.
 func GenerateKey(passphrase string, salt []byte, keyLength int) ([]byte, error) {
-	keyBytes, err := scrypt.Key([]byte(passphrase), salt, 32768, 8, 1, keyLength)
+	// check if the key length is valid
+	if keyLength <= MinKeyLength {
+		return nil, errors.New(ErrKeyLengthTooShort)
+	}
+	keyBytes, err := scrypt.Key([]byte(passphrase), salt, ScryptN, ScryptR, ScryptP, keyLength)
 	if err != nil {
 		return nil, err
 	}
