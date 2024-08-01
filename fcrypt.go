@@ -7,9 +7,11 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"hash"
 	"io"
 	"os"
 
+	"golang.org/x/crypto/blake2b"
 	"golang.org/x/crypto/scrypt"
 	"golang.org/x/crypto/sha3"
 )
@@ -73,6 +75,70 @@ var (
 	ErrFailedToCreateFile   = errors.New("failed to create file")
 	ErrFailedToReadData     = errors.New("failed to read data")
 )
+
+// GenerateSalt generates a random salt of the specified length.
+// It uses the crypto/rand package to generate cryptographically secure random bytes.
+// The length parameter specifies the number of bytes to generate.
+// It returns the generated salt as a byte slice and any error encountered during the generation process.
+func GenerateSalt(length int) ([]byte, error) {
+	salt := make([]byte, length)
+	if _, err := rand.Read(salt); err != nil {
+		return nil, err
+	}
+	return salt, nil
+}
+
+// GenerateKey generates a key using the provided passphrase, salt, and key length.
+// It uses the scrypt key derivation function to derive the key from the passphrase and salt.
+// The key length specifies the desired length of the generated key in bytes.
+// Returns the generated key as a byte slice and any error encountered during the key generation process.
+func GenerateKey(passphrase string, salt []byte, keyLength int) ([]byte, error) {
+	// check if the key length is valid
+	if keyLength <= MinKeyLength {
+		return nil, ErrKeyLengthTooShort
+	}
+	keyBytes, err := scrypt.Key([]byte(passphrase), salt, ScryptN, ScryptR, ScryptP, keyLength)
+	if err != nil {
+		return nil, err
+	}
+	return keyBytes, nil
+}
+
+// GenerateGCM generates a Galois/Counter Mode (GCM) cipher.AEAD and cipher.Block using the provided key.
+// It returns the generated gcm, block, and any error encountered during the process.
+func GenerateGCM(key []byte) (gcm cipher.AEAD, block cipher.Block, err error) {
+	block, err = aes.NewCipher(key)
+	if err != nil {
+		return
+	}
+
+	gcm, err = cipher.NewGCM(block)
+	if err != nil {
+		return
+	}
+	return
+}
+
+// GenerateGCMWithNonce generates a Galois/Counter Mode (GCM) cipher with a random nonce.
+// It takes a key as input and returns the GCM cipher, the underlying block cipher,
+// the generated nonce, and any error that occurred during the process.
+func GenerateGCMWithNonce(key []byte) (gcm cipher.AEAD, block cipher.Block, nonce []byte, err error) {
+	block, err = aes.NewCipher(key)
+	if err != nil {
+		return
+	}
+
+	gcm, err = cipher.NewGCM(block)
+	if err != nil {
+		return
+	}
+
+	nonce = make([]byte, gcm.NonceSize())
+	if _, err = io.ReadFull(rand.Reader, nonce); err != nil {
+		return
+	}
+	return
+}
 
 // Encrypt encrypts the given data using the provided key and returns the encrypted result.
 // It uses the GCM mode of operation for encryption.
@@ -238,6 +304,76 @@ func DecryptFileToFile(encryptedFilePath, decryptedFilePath string, key []byte, 
 	return nil
 }
 
+// ReEncryptFileToFile re-encrypts the contents of an encrypted file using a new encryption key
+// and writes the decrypted contents to a new file.
+//
+// Parameters:
+// - encryptedFilePath: The path to the encrypted file.
+// - decryptedFilePath: The path to the new file where the decrypted contents will be written.
+// - oldKey: The old encryption key used to encrypt the file.
+// - newKey: The new encryption key to be used for re-encryption.
+// - chunkSize: The size of each chunk to be read from the encrypted file.
+//
+// Returns:
+// - An error if any error occurs during the re-encryption process, or nil if the re-encryption is successful.
+//
+// Example usage:
+//
+//	err := ReEncryptFileToFile("/path/to/encrypted/file", "/path/to/decrypted/file", oldKey, newKey, 1024)
+//	if err != nil {
+//		fmt.Println("Error:", err)
+//	}
+func ReEncryptFileToFile(encryptedFilePath, decryptedFilePath string, oldKey []byte, newKey []byte, chunkSize int) error {
+	encryptedFile, err := os.Open(encryptedFilePath)
+	if err != nil {
+		return fmt.Errorf("%w: %v", ErrFailedToCreateFile, err)
+	}
+	defer encryptedFile.Close()
+
+	decryptedFile, err := os.Create(decryptedFilePath)
+	if err != nil {
+		return fmt.Errorf("%w: %v", ErrFailedToCreateFile, err)
+	}
+	defer decryptedFile.Close()
+
+	block, err := aes.NewCipher(oldKey)
+	if err != nil {
+		return fmt.Errorf("%w: %v", ErrFailedToCreateCipher, err)
+	}
+
+	nonceSize := GCMNonceSize // 12 bytes nonce for GCM
+	chunk := make([]byte, chunkSize+nonceSize)
+
+	for {
+		n, err := encryptedFile.Read(chunk)
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return fmt.Errorf("%w: %v", ErrFailedToReadData, err)
+		}
+
+		nonce := chunk[:nonceSize]
+		encryptedChunk := chunk[nonceSize:n]
+
+		decryptedChunk, err := DecryptChunk(block, encryptedChunk, nonce)
+		if err != nil {
+			return fmt.Errorf("%w: %v", ErrFailedToCreateGCM, err)
+		}
+
+		reEncryptedChunk, err := EncryptChunk(block, decryptedChunk, nonce)
+		if err != nil {
+			return fmt.Errorf("%w: %v", ErrFailedToCreateGCM, err)
+		}
+
+		if _, err := decryptedFile.Write(reEncryptedChunk); err != nil {
+			return fmt.Errorf("%w: %v", ErrFailedToCreateFile, err)
+		}
+	}
+
+	return nil
+}
+
 // StreamEncrypt takes an input data stream and a key, and returns an encrypted data stream along with any error encountered.
 // The function generates a GCM (Galois/Counter Mode) cipher using the provided key, and then generates a random nonce.
 // It uses the GCM cipher in CTR (Counter) mode to create a cipher stream reader, which encrypts the input data stream.
@@ -295,64 +431,108 @@ func StreamReEncrypt(data io.Reader, oldKey []byte, newKey []byte) (io.Reader, e
 	return StreamEncrypt(decryptedStream, newKey)
 }
 
-// GenerateSalt generates a random salt of the specified length.
-// It uses the crypto/rand package to generate cryptographically secure random bytes.
-// The length parameter specifies the number of bytes to generate.
-// It returns the generated salt as a byte slice and any error encountered during the generation process.
-func GenerateSalt(length int) ([]byte, error) {
-	salt := make([]byte, length)
-	if _, err := rand.Read(salt); err != nil {
-		return nil, err
-	}
-	return salt, nil
-}
-
-// GenerateKey generates a key using the provided passphrase, salt, and key length.
-// It uses the scrypt key derivation function to derive the key from the passphrase and salt.
-// The key length specifies the desired length of the generated key in bytes.
-// Returns the generated key as a byte slice and any error encountered during the key generation process.
-func GenerateKey(passphrase string, salt []byte, keyLength int) ([]byte, error) {
-	// check if the key length is valid
-	if keyLength <= MinKeyLength {
-		return nil, ErrKeyLengthTooShort
-	}
-	keyBytes, err := scrypt.Key([]byte(passphrase), salt, ScryptN, ScryptR, ScryptP, keyLength)
-	if err != nil {
-		return nil, err
-	}
-	return keyBytes, nil
-}
-
-// GenerateGCM generates a Galois/Counter Mode (GCM) cipher.AEAD and cipher.Block using the provided key.
-// It returns the generated gcm, block, and any error encountered during the process.
-func GenerateGCM(key []byte) (gcm cipher.AEAD, block cipher.Block, err error) {
-	block, err = aes.NewCipher(key)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	gcm, err = cipher.NewGCM(block)
-	if err != nil {
-		return nil, nil, err
-	}
-	return gcm, block, nil
-}
-
 // Hashing functions
-// HashStringToString takes a string as input and returns its SHA3-256 hash as a hexadecimal string.
-func HashStringToString(data string) string {
-	hashArray := sha3.Sum256([]byte(data))
-	return hex.EncodeToString(hashArray[:])
+
+// Hash calculates the hash of the given io.Reader using the provided hash.Hash.
+func Hash(reader io.Reader, hasher hash.Hash) ([]byte, error) {
+	if _, err := io.Copy(hasher, reader); err != nil {
+		return nil, err
+	}
+	return hasher.Sum(nil), nil
 }
 
-// HashString calculates the SHA3-256 hash of the input string.
-// It takes a string as input and returns a fixed-size array of 32 bytes.
-func HashString(data string) [32]byte {
-	return sha3.Sum256([]byte(data))
+// HashBytes calculates the hash of the given byte slice using the provided hash.Hash.
+func HashBytes(data []byte, hasher hash.Hash) []byte {
+	hasher.Write(data)
+	return hasher.Sum(nil)
 }
 
-// HashByte calculates the SHA3-256 hash of the given byte slice.
-// It returns a fixed-size array of 32 bytes representing the hash.
-func HashByte(data []byte) [32]byte {
-	return sha3.Sum256([]byte(data))
+// HashBytesToString calculates the hash of the given byte slice using the provided hash.Hash.
+func HashBytesToString(data []byte, hasher hash.Hash) string {
+	return HashBytesToStringSHA3(data)
+}
+
+// HashString calculates the hash of the given string using the provided hash.Hash.
+func HashString(data string, hasher hash.Hash) []byte {
+	hasher.Write([]byte(data))
+	return hasher.Sum(nil)
+}
+
+// HashStringToString calculates the hash of the given string using the provided hash.Hash.
+func HashStringToString(data string, hasher hash.Hash) string {
+	return hex.EncodeToString(HashString(data, hasher))
+}
+
+// HashFile calculates the hash of the given file using the provided hash.Hash.
+func HashFile(file *os.File, hasher hash.Hash) ([]byte, error) {
+	if _, err := io.Copy(hasher, file); err != nil {
+		return nil, err
+	}
+	return hasher.Sum(nil), nil
+}
+
+// Specific SHA3-256 functions
+
+// HashBytesSHA3 calculates the SHA3-256 hash of the given data.
+// It uses the HashBytes function with a new SHA3-256 hash instance.
+func HashBytesSHA3(data []byte) []byte {
+	return HashBytes(data, sha3.New256())
+}
+
+// HashBytesToStringSHA3 converts a byte slice to a string representation of its SHA3 hash.
+// It takes a byte slice `data` as input and returns the hexadecimal string representation of the SHA3 hash.
+func HashBytesToStringSHA3(data []byte) string {
+	return hex.EncodeToString(HashBytes(data, sha3.New256()))
+}
+
+// HashStringSHA3 hashes the given string using SHA3-256 algorithm and returns the resulting hash as a byte slice.
+func HashStringSHA3(data string) []byte {
+	return HashString(data, sha3.New256())
+}
+
+// HashStringToStringSHA3 hashes a string using SHA3-256 algorithm and returns the hashed value as a string.
+func HashStringToStringSHA3(data string) string {
+	return HashStringToString(data, sha3.New256())
+}
+
+// HashFileSHA3 calculates the SHA3-256 hash of the given file.
+// It takes a *os.File as input and returns the hash as a byte slice.
+// If an error occurs during the hashing process, it is returned as the second value.
+func HashFileSHA3(file *os.File) ([]byte, error) {
+	return HashFile(file, sha3.New256())
+}
+
+// HashWithBlake2b512 hashes the contents of the provided io.Reader using BLAKE2b-512.
+// It returns the computed hash as a byte slice.
+func HashWithBlake2b512(reader io.Reader, key []byte) ([]byte, error) {
+	hasher, err := blake2b.New512(nil)
+	if err != nil {
+		return nil, err
+	}
+	return Hash(reader, hasher)
+}
+
+// HashWithBlake2b512NoKey calculates the Blake2b-512 hash of the data read from the given reader,
+// without using any key. It internally calls the HashWithBlake2b512 function with a nil key.
+// It returns the hash as a byte slice and any error encountered during the hashing process.
+func HashWithBlake2b512NoKey(reader io.Reader) ([]byte, error) {
+	return HashWithBlake2b512(reader, nil)
+}
+
+// HashWithBlake2b256 hashes the contents of the provided io.Reader using BLAKE2b-256.
+// It returns the computed hash as a byte slice.
+func HashWithBlake2b256(reader io.Reader, key []byte) ([]byte, error) {
+	hasher, err := blake2b.New256(key)
+	if err != nil {
+		return nil, err
+	}
+	return Hash(reader, hasher)
+}
+
+// HashWithBlake2b256NoKey calculates the Blake2b-256 hash of the data read from the given reader,
+// without using any key. It is a convenience function that calls HashWithBlake2b256 with a nil key.
+// The resulting hash is returned as a byte slice.
+// If an error occurs during the hashing process, it is returned along with a nil byte slice.
+func HashWithBlake2b256NoKey(reader io.Reader) ([]byte, error) {
+	return HashWithBlake2b256(reader, nil)
 }

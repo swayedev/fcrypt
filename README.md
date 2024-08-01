@@ -9,7 +9,7 @@ Fcrypt is a flexible and secure encryption package for Go, providing easy-to-use
 - Encrypt large data and files in chunks.
 - Key rotation and re-encryption support.
 - Extensible key management with an interface for different key types.
-- Hashing functions using SHA3-256.
+- Hashing functions using SHA3-256 and BLAKE2b.
 
 ## Installation
 
@@ -243,13 +243,15 @@ func main() {
 
 ### Hashing Functions
 
-Fcrypt includes hashing functions using SHA3-256:
+Fcrypt includes hashing functions using SHA3-256 and BLAKE2b:
 
 ```go
 package main
 
 import (
     "fmt"
+    "os"
+    "strings"
 
     "github.com/swayedev/fcrypt"
 )
@@ -257,17 +259,40 @@ import (
 func main() {
     data := "Sensitive data here"
 
-    // Hash string to string
-    hashedString := fcrypt.HashStringToString(data)
-    fmt.Printf("Hashed string: %s\n", hashedString)
+    // Hash string to string using SHA3-256
+    hashedStringSHA3 := fcrypt.HashStringToStringSHA3(data)
+    fmt.Printf("SHA3-256 Hashed string: %s\n", hashedStringSHA3)
 
-    // Hash string to byte array
-    hashedArray := fcrypt.HashString(data)
-    fmt.Printf("Hashed array: %x\n", hashedArray)
+    // Hash string to byte array using SHA3-256
+    hashedArraySHA3 := fcrypt.HashStringSHA3(data)
+    fmt.Printf("SHA3-256 Hashed array: %x\n", hashedArraySHA3)
 
-    // Hash byte slice
-    hashedBytes := fcrypt.HashByte([]byte(data))
-    fmt.Printf("Hashed bytes: %x\n", hashedBytes)
+    // Hash byte slice using SHA3-256
+    hashedBytesSHA3 := fcrypt.HashBytesSHA3([]byte(data))
+    fmt.Printf("SHA3-256 Hashed bytes: %x\n", hashedBytesSHA3)
+
+    // Hash file using SHA3-256
+    file, err := os.Open("largefile.txt")
+    if err != nil {
+        fmt.Printf("Failed to open file: %v\n", err)
+        return
+    }
+    defer file.Close()
+    hashedFileSHA3, err := fcrypt.HashFileSHA3(file)
+    if err != nil {
+        fmt.Printf("Failed to hash file: %v\n", err)
+        return
+    }
+    fmt.Printf("SHA3-256 Hashed file: %x\n", hashedFileSHA3)
+
+    // Hash string to string using BLAKE2b-512
+    reader := strings.NewReader(data)
+    hashedStringBlake2b512, err := fcrypt.HashWithBlake2b512(reader, nil)
+    if err != nil {
+        fmt.Printf("Failed to hash string with BLAKE2b-512: %v\n", err)
+        return
+    }
+    fmt.Printf("BLAKE2b-512 Hashed string: %x\n", hashedStringBlake2b512)
 }
 ```
 
@@ -285,6 +310,9 @@ func main() {
 - `ScryptN`, `ScryptR`, `ScryptP`: Parameters for the scrypt key derivation function.
 - `MinNonceSize`: Minimum nonce size (12 bytes).
 - `GCMNonceSize`: Size of the nonce used in GCM mode.
+
+### Error Variables
+
 - `ErrCiphertextTooShort`: Error message for short ciphertext.
 - `ErrKeyLengthTooShort`: Error message for short key length.
 - `ErrFailedToCreateCipher`: Error message for failing to create a cipher.
@@ -297,19 +325,29 @@ func main() {
 - `GenerateSalt(length int) ([]byte, error)`: Generates a random salt.
 - `GenerateKey(passphrase string, salt []byte, keyLength int) ([]byte, error)`: Generates a key using scrypt.
 - `GenerateGCM(key []byte) (cipher.AEAD, cipher.Block, error)`: Generates a GCM cipher.
+- `GenerateGCMWithNonce(key []byte) (cipher.AEAD, cipher.Block, []byte, error)`: Generates a GCM cipher with a random nonce.
 - `Encrypt(data []byte, key []byte) ([]byte, error)`: Encrypts data.
 - `Decrypt(data []byte, key []byte) ([]byte, error)`: Decrypts data.
-- `ReEncrypt(data []byte, oldKey []byte, newKey
-
- []byte) ([]byte, error)`: Re-encrypts data with a new key.
+- `ReEncrypt(data []byte, oldKey []byte, newKey []byte) ([]byte, error)`: Re-encrypts data with a new key.
 - `StreamEncrypt(data io.Reader, key []byte) (io.Reader, error)`: Encrypts data stream.
 - `StreamDecrypt(data io.Reader, key []byte) (io.Reader, error)`: Decrypts data stream.
 - `StreamReEncrypt(data io.Reader, oldKey []byte, newKey []byte) (io.Reader, error)`: Re-encrypts data stream with a new key.
 - `EncryptFileToFile(data io.Reader, key []byte, chunkSize int, filePath string) error`: Encrypts data from a reader and writes it to a file.
 - `DecryptFileToFile(encryptedFilePath, decryptedFilePath string, key []byte, chunkSize int) error`: Decrypts data from an encrypted file and writes it to a new file.
-- `HashStringToString(data string) string`: Hashes a string and returns a hexadecimal string.
-- `HashString(data string) [32]byte`: Hashes a string and returns a 32-byte array.
-- `HashByte(data []byte) [32]byte`: Hashes a byte slice and returns a 32-byte array.
+- `HashBytes(data []byte, hasher hash.Hash) []byte`: Hashes a byte slice.
+- `HashBytesToString(data []byte, hasher hash.Hash) string`: Hashes a byte slice and returns a hexadecimal string.
+- `HashString(data string, hasher hash.Hash) []byte`: Hashes a string.
+- `HashStringToString(data string, hasher hash.Hash) string`: Hashes a string and returns a hexadecimal string.
+- `HashFile(file *os.File, hasher hash.Hash) ([]byte, error)`: Hashes the contents of a file.
+- `HashBytesSHA3(data []byte) []byte`: Hashes a byte slice using SHA3-256.
+- `HashBytesToStringSHA3(data []byte) string`: Hashes a byte slice using SHA3-256 and returns a hexadecimal string.
+- `HashStringSHA3(data string) []byte`: Hashes a string using SHA3-256.
+- `HashStringToStringSHA3(data string) string`: Hashes a string using SHA3-256 and returns a hexadecimal string.
+- `HashFileSHA3(file *os.File) ([]byte, error)`: Hashes the contents of a file using SHA3-256.
+- `HashWithBlake2b512(reader io.Reader, key []byte) ([]byte, error)`: Hashes the contents of an `io.Reader` using BLAKE2b-512.
+- `HashWithBlake2b512NoKey(reader io.Reader) ([]byte, error)`: Hashes the contents of an `io.Reader` using BLAKE2b-512 without a key.
+- `HashWithBlake2b256(reader io.Reader, key []byte) ([]byte, error)`: Hashes the contents of an `io.Reader` using BLAKE2b-256.
+- `HashWithBlake2b256NoKey(reader io.Reader) ([]byte, error)`: Hashes the contents of an `io.Reader` using BLAKE2b-256 without a key.
 - `RotateKey(passphrase string, store map[string]Key, keyLength int) (string, error)`: Rotates the encryption key.
 
 ## License
@@ -322,7 +360,7 @@ Contributions are welcome! Please open an issue or submit a pull request for any
 
 ## Version
 
-Current version: 0.1.0
+Current version: 0.2.0
 
 ## Authors
 
