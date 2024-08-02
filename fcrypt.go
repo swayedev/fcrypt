@@ -109,33 +109,28 @@ func GenerateKey(passphrase string, salt []byte, keyLength int) ([]byte, error) 
 func GenerateGCM(key []byte) (gcm cipher.AEAD, block cipher.Block, err error) {
 	block, err = aes.NewCipher(key)
 	if err != nil {
-		return
+		return nil, nil, fmt.Errorf("%w: %v", ErrFailedToCreateCipher, err)
 	}
 
 	gcm, err = cipher.NewGCM(block)
 	if err != nil {
-		return
+		return nil, nil, fmt.Errorf("%w: %v", ErrFailedToCreateGCM, err)
 	}
 	return
 }
 
-// GenerateGCMWithNonce generates a Galois/Counter Mode (GCM) cipher with a random nonce.
+// GenerateGCMWithNonce generates a Galois/Counter Mode (GCM) cipher with a random nonce equal to the block size.
 // It takes a key as input and returns the GCM cipher, the underlying block cipher,
 // the generated nonce, and any error that occurred during the process.
 func GenerateGCMWithNonce(key []byte) (gcm cipher.AEAD, block cipher.Block, nonce []byte, err error) {
-	block, err = aes.NewCipher(key)
+	gcm, block, err = GenerateGCM(key)
 	if err != nil {
 		return
 	}
 
-	gcm, err = cipher.NewGCM(block)
-	if err != nil {
-		return
-	}
-
-	nonce = make([]byte, gcm.NonceSize())
+	nonce = make([]byte, block.BlockSize())
 	if _, err = io.ReadFull(rand.Reader, nonce); err != nil {
-		return
+		return nil, nil, nil, fmt.Errorf("%w: %v", ErrFailedToReadData, err)
 	}
 	return
 }
@@ -379,15 +374,31 @@ func ReEncryptFileToFile(encryptedFilePath, decryptedFilePath string, oldKey []b
 // It uses the GCM cipher in CTR (Counter) mode to create a cipher stream reader, which encrypts the input data stream.
 // The encrypted data stream is returned along with a possible error.
 func StreamEncrypt(data io.Reader, key []byte) (io.Reader, error) {
-	_, block, nonce, err := GenerateGCMWithNonce(key)
+	block, err := aes.NewCipher(key)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%w: %v", ErrFailedToCreateCipher, err)
 	}
 
-	return cipher.StreamReader{
-		S: cipher.NewCTR(block, nonce),
-		R: data,
-	}, nil
+	nonce := make([]byte, block.BlockSize())
+	if _, err := io.ReadFull(rand.Reader, nonce); err != nil {
+		return nil, fmt.Errorf("%w: %v", ErrFailedToReadData, err)
+	}
+
+	pr, pw := io.Pipe()
+	go func() {
+		defer pw.Close()
+		// Write the nonce to the pipe writer
+		if _, err := pw.Write(nonce); err != nil {
+			pw.CloseWithError(err)
+			return
+		}
+		stream := cipher.NewCTR(block, nonce)
+		writer := &cipher.StreamWriter{S: stream, W: pw}
+		if _, err := io.Copy(writer, data); err != nil {
+			pw.CloseWithError(err)
+		}
+	}()
+	return pr, nil
 }
 
 // StreamDecrypt decrypts the data from the given io.Reader using the provided key.
@@ -398,15 +409,26 @@ func StreamEncrypt(data io.Reader, key []byte) (io.Reader, error) {
 // The returned io.Reader can be used to read the decrypted data.
 // If an error occurs during decryption, it is returned along with a nil io.Reader.
 func StreamDecrypt(data io.Reader, key []byte) (io.Reader, error) {
-	_, block, nonce, err := GenerateGCMWithNonce(key)
+	block, err := aes.NewCipher(key)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%w: %v", ErrFailedToCreateCipher, err)
 	}
 
-	return cipher.StreamReader{
-		S: cipher.NewCTR(block, nonce),
-		R: data,
-	}, nil
+	nonce := make([]byte, block.BlockSize())
+	if _, err := io.ReadFull(data, nonce); err != nil {
+		return nil, fmt.Errorf("%w: %v", ErrFailedToReadData, err)
+	}
+
+	pr, pw := io.Pipe()
+	go func() {
+		defer pw.Close()
+		stream := cipher.NewCTR(block, nonce)
+		reader := &cipher.StreamReader{S: stream, R: data}
+		if _, err := io.Copy(pw, reader); err != nil {
+			pw.CloseWithError(err)
+		}
+	}()
+	return pr, nil
 }
 
 // StreamReEncrypt re-encrypts the data from the given reader using the oldKey and then encrypts it again using the newKey.
