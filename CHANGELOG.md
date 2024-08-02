@@ -10,6 +10,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Placeholder for future changes.
 
+## [0.2.1] - 2024-08-02
+
+### Added
+
+- Added functions to enable use of default `FcryptKey`
+
 ## [0.2.0] - 2024-08-02
 
 ### Added
