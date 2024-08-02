@@ -379,13 +379,8 @@ func ReEncryptFileToFile(encryptedFilePath, decryptedFilePath string, oldKey []b
 // It uses the GCM cipher in CTR (Counter) mode to create a cipher stream reader, which encrypts the input data stream.
 // The encrypted data stream is returned along with a possible error.
 func StreamEncrypt(data io.Reader, key []byte) (io.Reader, error) {
-	gcm, block, err := GenerateGCM(key)
+	_, block, nonce, err := GenerateGCMWithNonce(key)
 	if err != nil {
-		return nil, err
-	}
-
-	nonce := make([]byte, gcm.NonceSize())
-	if _, err = rand.Read(nonce); err != nil {
 		return nil, err
 	}
 
@@ -403,13 +398,8 @@ func StreamEncrypt(data io.Reader, key []byte) (io.Reader, error) {
 // The returned io.Reader can be used to read the decrypted data.
 // If an error occurs during decryption, it is returned along with a nil io.Reader.
 func StreamDecrypt(data io.Reader, key []byte) (io.Reader, error) {
-	gcm, block, err := GenerateGCM(key)
+	_, block, nonce, err := GenerateGCMWithNonce(key)
 	if err != nil {
-		return nil, err
-	}
-
-	nonce := make([]byte, gcm.NonceSize())
-	if _, err = io.ReadFull(data, nonce); err != nil {
 		return nil, err
 	}
 
