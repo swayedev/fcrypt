@@ -379,15 +379,31 @@ func ReEncryptFileToFile(encryptedFilePath, decryptedFilePath string, oldKey []b
 // It uses the GCM cipher in CTR (Counter) mode to create a cipher stream reader, which encrypts the input data stream.
 // The encrypted data stream is returned along with a possible error.
 func StreamEncrypt(data io.Reader, key []byte) (io.Reader, error) {
-	_, block, nonce, err := GenerateGCMWithNonce(key)
+	block, err := aes.NewCipher(key)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%w: %v", ErrFailedToCreateCipher, err)
 	}
 
-	return cipher.StreamReader{
-		S: cipher.NewCTR(block, nonce),
-		R: data,
-	}, nil
+	nonce := make([]byte, block.BlockSize())
+	if _, err := io.ReadFull(rand.Reader, nonce); err != nil {
+		return nil, fmt.Errorf("%w: %v", ErrFailedToReadData, err)
+	}
+
+	pr, pw := io.Pipe()
+	go func() {
+		defer pw.Close()
+		// Write the nonce to the pipe writer
+		if _, err := pw.Write(nonce); err != nil {
+			pw.CloseWithError(err)
+			return
+		}
+		stream := cipher.NewCTR(block, nonce)
+		writer := &cipher.StreamWriter{S: stream, W: pw}
+		if _, err := io.Copy(writer, data); err != nil {
+			pw.CloseWithError(err)
+		}
+	}()
+	return pr, nil
 }
 
 // StreamDecrypt decrypts the data from the given io.Reader using the provided key.
@@ -398,15 +414,26 @@ func StreamEncrypt(data io.Reader, key []byte) (io.Reader, error) {
 // The returned io.Reader can be used to read the decrypted data.
 // If an error occurs during decryption, it is returned along with a nil io.Reader.
 func StreamDecrypt(data io.Reader, key []byte) (io.Reader, error) {
-	_, block, nonce, err := GenerateGCMWithNonce(key)
+	block, err := aes.NewCipher(key)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%w: %v", ErrFailedToCreateCipher, err)
 	}
 
-	return cipher.StreamReader{
-		S: cipher.NewCTR(block, nonce),
-		R: data,
-	}, nil
+	nonce := make([]byte, block.BlockSize())
+	if _, err := io.ReadFull(data, nonce); err != nil {
+		return nil, fmt.Errorf("%w: %v", ErrFailedToReadData, err)
+	}
+
+	pr, pw := io.Pipe()
+	go func() {
+		defer pw.Close()
+		stream := cipher.NewCTR(block, nonce)
+		reader := &cipher.StreamReader{S: stream, R: data}
+		if _, err := io.Copy(pw, reader); err != nil {
+			pw.CloseWithError(err)
+		}
+	}()
+	return pr, nil
 }
 
 // StreamReEncrypt re-encrypts the data from the given reader using the oldKey and then encrypts it again using the newKey.

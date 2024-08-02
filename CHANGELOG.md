@@ -27,6 +27,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Consolidated hashing functions to accept a `hash.Hash` parameter, making the API more flexible and versatile.
 - Generalized `Hash` function for hashing `io.Reader` data using a provided `hash.Hash`.
 
+### Fixed
+
+- Fixed `StreamEncrypt` and `StreamDecrypt` CipherIV issues.
 
 ## [0.1.0] - 2024-07-31
 
