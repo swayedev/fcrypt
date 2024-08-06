@@ -36,6 +36,42 @@ func TestGenerateKey(t *testing.T) {
 	}
 }
 
+// TestGenerateSaltAndKey tests the GenerateSaltAndKey function.
+func TestGenerateSaltAndKey(t *testing.T) {
+	passphrase := "your-passphrase"
+	saltLength := 16
+	keyLength := 32
+
+	salt1, key1, err1 := fcrypt.GenerateSaltAndKey(passphrase, saltLength, keyLength)
+	if err1 != nil {
+		t.Fatalf("expected no error, got %v", err1)
+	}
+
+	salt2, key2, err2 := fcrypt.GenerateSaltAndKey(passphrase, saltLength, keyLength)
+	if err2 != nil {
+		t.Fatalf("expected no error, got %v", err2)
+	}
+
+	// Check that the salt and key are of the correct length
+	if len(salt1) != saltLength {
+		t.Fatalf("expected salt length %d, got %d", saltLength, len(salt1))
+	}
+
+	if len(key1) != keyLength {
+		t.Fatalf("expected key length %d, got %d", keyLength, len(key1))
+	}
+
+	// Check that two different salt and key pairs are generated
+	if bytes.Equal(salt1, salt2) && bytes.Equal(key1, key2) {
+		t.Fatalf("expected different salt and key pairs, got the same")
+	}
+
+	t.Logf("Salt1: %x", salt1)
+	t.Logf("Key1: %x", key1)
+	t.Logf("Salt2: %x", salt2)
+	t.Logf("Key2: %x", key2)
+}
+
 func TestEncryptDecrypt(t *testing.T) {
 	passphrase := "test-passphrase"
 	data := []byte("Sensitive data here")

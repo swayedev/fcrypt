@@ -151,6 +151,22 @@ func GenerateKey(passphrase string, salt []byte, keyLength int) ([]byte, error) 
 	return keyBytes, nil
 }
 
+// GenerateSaltAndKey generates the salt and key using the provided passphrase and key length.
+// It first generates the salt of the specified length and then derives the key using that salt.
+func GenerateSaltAndKey(passphrase string, saltLength int, keyLength int) ([]byte, []byte, error) {
+	salt, err := GenerateSalt(saltLength)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	key, err := GenerateKey(passphrase, salt, keyLength)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return salt, key, nil
+}
+
 // GenerateGCM generates a Galois/Counter Mode (GCM) cipher.AEAD and cipher.Block using the provided key.
 // It returns the generated gcm, block, and any error encountered during the process.
 func GenerateGCM(key []byte) (gcm cipher.AEAD, block cipher.Block, err error) {

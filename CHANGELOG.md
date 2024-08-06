@@ -8,7 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- Placeholder for future changes.
+
+- Added function `GenerateSaltAndKey` combining `GenerateSalt` and `GenerateKey` functions into one
 
 ## [0.2.1] - 2024-08-02
 
