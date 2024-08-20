@@ -8,7 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- Placeholder for future changes.
+- Added Parser module for parsing PEM public and private keys
 
 ## [0.2.0] - 2024-08-01
 
