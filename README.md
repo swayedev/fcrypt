@@ -363,7 +363,7 @@ Contributions are welcome! Please open an issue or submit a pull request for any
 
 ## Version
 
-Current version: 0.2.1
+Current version: 0.2.2
 
 ## Authors
 

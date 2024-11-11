@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Added function `GenerateSaltAndKey` combining `GenerateSalt` and `GenerateKey` functions into one
 
+## [0.2.2] - 2024-11-10
+
+- Security patch: Updated dependencies
+
 ## [0.2.1] - 2024-08-02
 
 ### Added
