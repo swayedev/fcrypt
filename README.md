@@ -372,3 +372,7 @@ Current version: 0.2.2
 ## Changelog
 
 Detailed changes for each version are documented in the [CHANGELOG.md](CHANGELOG.md) file.
+
+## Roadmap
+
+Detailed changes for each upcoming version goals are documented in the [ROADMAP.md](ROADMAP.md) file.
