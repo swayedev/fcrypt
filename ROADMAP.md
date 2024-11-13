@@ -1,4 +1,4 @@
-### Roadmap
+# Roadmap
 
 To bring clarity to planned future upgrades, Fcrypt needed to have a roadmap to list planned functionality and insight into the projects upcoming goals:
 
