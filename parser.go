@@ -1,6 +1,7 @@
 package fcrypt
 
 import (
+	"crypto"
 	"crypto/ecdsa"
 	"crypto/ed25519"
 	"crypto/rsa"
@@ -9,47 +10,68 @@ import (
 	"errors"
 	"fmt"
 
+	"golang.org/x/crypto/curve25519"
 	"golang.org/x/crypto/ssh"
 )
 
-// Parser for PEM certs: parses the private key and public key from the byte slice.
-
-// ParsePemPrivateKey parses a PEM-encoded private key and returns the corresponding private key object.
-// It supports PKCS#1, PKCS#8, and EC private keys.
-func ParsePemPrivateKey(pemPrivateKey []byte) (any, error) {
-	block, _ := pem.Decode(pemPrivateKey)
+// decodePEMBlock decodes a PEM block and validates its type, if specified.
+func decodePEMBlock(pemData []byte, expectedType string) (*pem.Block, error) {
+	block, _ := pem.Decode(pemData)
 	if block == nil {
-		return nil, errors.New("failed to parse PEM block containing the private key")
+		return nil, errors.New("failed to decode PEM block")
 	}
+	if expectedType != "" && block.Type != expectedType {
+		return nil, fmt.Errorf("unexpected PEM block type: got %s, want %s", block.Type, expectedType)
+	}
+	return block, nil
+}
 
-	var priKey any
-	var err error
+// parseX25519PrivateKey handles parsing X25519 private keys from PEM blocks.
+func parseX25519PrivateKey(block *pem.Block) ([]byte, error) {
+	if block.Type != "X25519 PRIVATE KEY" || len(block.Bytes) != curve25519.ScalarSize {
+		return nil, errors.New("invalid X25519 private key")
+	}
+	return block.Bytes, nil
+}
+
+// parseX25519PublicKey handles parsing X25519 public keys from PEM blocks.
+func parseX25519PublicKey(block *pem.Block) ([]byte, error) {
+	if block.Type != "X25519 PUBLIC KEY" || len(block.Bytes) != curve25519.PointSize {
+		return nil, errors.New("invalid X25519 public key")
+	}
+	return block.Bytes, nil
+}
+
+// ParsePemPrivateKey parses PEM-encoded private keys and supports multiple formats.
+func ParsePemPrivateKey(pemPrivateKey []byte) (interface{}, error) {
+	block, err := decodePEMBlock(pemPrivateKey, "")
+	if err != nil {
+		return nil, err
+	}
 
 	switch block.Type {
 	case "RSA PRIVATE KEY":
-		priKey, err = x509.ParsePKCS1PrivateKey(block.Bytes)
+		return x509.ParsePKCS1PrivateKey(block.Bytes)
 	case "EC PRIVATE KEY":
-		priKey, err = x509.ParseECPrivateKey(block.Bytes)
+		return x509.ParseECPrivateKey(block.Bytes)
 	case "PRIVATE KEY":
-		priKey, err = x509.ParsePKCS8PrivateKey(block.Bytes)
-
+		return x509.ParsePKCS8PrivateKey(block.Bytes)
+	case "X25519 PRIVATE KEY":
+		return parseX25519PrivateKey(block)
 	default:
 		return nil, fmt.Errorf("unsupported private key type: %s", block.Type)
 	}
-
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse private key: %v", err)
-	}
-
-	return priKey, nil
 }
 
-// ParsePemPublicKey decodes a PEM-encoded public key and returns the parsed public key.
-// It supports PKIX, RSA, DSA, and EC public keys.
-func ParsePemPublicKey(pemPublicKey []byte) (any, error) {
-	block, _ := pem.Decode(pemPublicKey)
-	if block == nil {
-		return nil, errors.New("failed to parse PEM block containing the public key")
+// ParsePemPublicKey parses PEM-encoded public keys and supports multiple formats.
+func ParsePemPublicKey(pemPublicKey []byte) (interface{}, error) {
+	block, err := decodePEMBlock(pemPublicKey, "")
+	if err != nil {
+		return nil, err
+	}
+
+	if block.Type == "X25519 PUBLIC KEY" {
+		return parseX25519PublicKey(block)
 	}
 
 	pubKey, err := x509.ParsePKIXPublicKey(block.Bytes)
@@ -65,8 +87,8 @@ func ParsePemPublicKey(pemPublicKey []byte) (any, error) {
 	}
 }
 
-// parseOpenSSHPrivateKey handles the parsing of OpenSSH private keys.
-func ParseOpenSSHPrivateKey(sshBytes []byte) (any, error) {
+// ParseOpenSSHPrivateKey parses OpenSSH private keys.
+func ParseOpenSSHPrivateKey(sshBytes []byte) (interface{}, error) {
 	parsedKey, err := ssh.ParseRawPrivateKey(sshBytes)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse OpenSSH private key: %v", err)
@@ -78,4 +100,57 @@ func ParseOpenSSHPrivateKey(sshBytes []byte) (any, error) {
 	default:
 		return nil, fmt.Errorf("unsupported OpenSSH private key type: %T", key)
 	}
+}
+
+// ParseOpenSSHPublicKey parses OpenSSH public keys.
+func ParseOpenSSHPublicKey(sshBytes []byte) (interface{}, error) {
+	pubKey, _, _, _, err := ssh.ParseAuthorizedKey(sshBytes)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse OpenSSH public key: %v", err)
+	}
+
+	parsedKey, err := ssh.ParsePublicKey(pubKey.Marshal())
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse OpenSSH public key: %v", err)
+	}
+
+	parsedCryptoKey := parsedKey.(ssh.CryptoPublicKey)
+	pubCrypto := parsedCryptoKey.CryptoPublicKey()
+
+	return convertToCryptoPublicKey(pubCrypto, pubKey.Type())
+}
+
+// convertToCryptoPublicKey converts ssh.PublicKey to its corresponding crypto.PublicKey.
+func convertToCryptoPublicKey(pubCrypto crypto.PublicKey, keyType string) (interface{}, error) {
+	switch keyType {
+	case ssh.KeyAlgoRSA:
+		return convertRSAPublicKey(pubCrypto)
+	case ssh.KeyAlgoECDSA256, ssh.KeyAlgoECDSA384, ssh.KeyAlgoECDSA521:
+		return convertECDSAPublicKey(pubCrypto)
+	case ssh.KeyAlgoED25519:
+		return convertED25519PublicKey(pubCrypto)
+	default:
+		return nil, fmt.Errorf("unsupported OpenSSH public key type: %s", keyType)
+	}
+}
+
+func convertRSAPublicKey(pubCrypto crypto.PublicKey) (*rsa.PublicKey, error) {
+	if rsaKey, ok := pubCrypto.(*rsa.PublicKey); ok {
+		return rsaKey, nil
+	}
+	return nil, errors.New("not an RSA public key")
+}
+
+func convertECDSAPublicKey(pubCrypto crypto.PublicKey) (*ecdsa.PublicKey, error) {
+	if ecdsaKey, ok := pubCrypto.(*ecdsa.PublicKey); ok {
+		return ecdsaKey, nil
+	}
+	return nil, errors.New("not an ECDSA public key")
+}
+
+func convertED25519PublicKey(pubCrypto crypto.PublicKey) (ed25519.PublicKey, error) {
+	if ed25519Key, ok := pubCrypto.(ed25519.PublicKey); ok {
+		return ed25519Key, nil
+	}
+	return nil, errors.New("not an ED25519 public key")
 }
