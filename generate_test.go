@@ -9,6 +9,7 @@ import (
 	"github.com/swayedev/fcrypt"
 )
 
+// WIP: Add more test cases to validate the GenerateCertificate function
 func TestGenerateCertificate(t *testing.T) {
 	// Test case 1: RSA algorithm
 	algorithm := "RSA"
