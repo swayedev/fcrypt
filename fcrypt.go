@@ -18,13 +18,17 @@ import (
 
 // Key interface to provide methods for handling encryption keys
 type Key interface {
+	// Encryption key version
 	Version() string
+	// Salt used for key derivation
 	Salt() []byte
+	// Encryption algorithm
 	Algo() string
+	// Encryption key as byte slice
 	KeyBytes() []byte
 }
 
-// ScryptKey struct implements the Key interface
+// FcryptKey struct implements the Key interface
 type FcryptKey struct {
 	version string
 	salt    []byte
