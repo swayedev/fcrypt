@@ -1,9 +1,9 @@
 # Fcrypt
 
-Fcrypt is a flexible and secure encryption package for Go, providing easy-to-use functions for encrypting and decrypting data using AES-GCM (Galois/Counter Mode). This package is designed for simplicity and security, making it suitable for various applications requiring data protection.
-
 [![Go Report Card](https://goreportcard.com/badge/github.com/swayedev/fcrypt)](https://goreportcard.com/report/github.com/swayedev/fcrypt)
 [![GoDoc](https://godoc.org/github.com/swayedev/fcrypt?status.svg)](https://godoc.org/github.com/swayedev/fcrypt)
+
+Fcrypt is a flexible and secure encryption package for Go, providing easy-to-use functions for encrypting and decrypting data using AES-GCM (Galois/Counter Mode). This package is designed for simplicity and security, making it suitable for various applications requiring data protection.
 
 ## Features
 
@@ -363,7 +363,7 @@ Contributions are welcome! Please open an issue or submit a pull request for any
 
 ## Version
 
-Current version: 0.2.0
+Current version: 0.2.2
 
 ## Authors
 
@@ -372,3 +372,7 @@ Current version: 0.2.0
 ## Changelog
 
 Detailed changes for each version are documented in the [CHANGELOG.md](CHANGELOG.md) file.
+
+## Roadmap
+
+Detailed changes for each upcoming version goals are documented in the [ROADMAP.md](ROADMAP.md) file.
