@@ -5,6 +5,10 @@
 
 Fcrypt is a flexible and secure encryption package for Go, providing easy-to-use functions for encrypting and decrypting data using AES-GCM (Galois/Counter Mode). This package is designed for simplicity and security, making it suitable for various applications requiring data protection.
 
+## Dependency philosophy
+
+Fcrypt aims to stay **standard-library first** to minimize dependency overhead. When functionality is not available in the standard library, Fcrypt may use packages under **`golang.org/x/*`** (the extended Go libraries maintained by the Go team). Fcrypt intentionally avoids third-party dependencies outside of the Go standard library and `golang.org/x/*`.
+
 ## Features
 
 - Encrypt and decrypt data with AES-GCM.
@@ -12,7 +16,7 @@ Fcrypt is a flexible and secure encryption package for Go, providing easy-to-use
 - Encrypt large data and files in chunks.
 - Key rotation and re-encryption support.
 - Extensible key management with an interface for different key types.
-- Hashing functions using SHA3-256 and BLAKE2b.
+- Hashing functions using SHA-256, SHA-512, SHA3-256 and BLAKE2b.
 
 ## Installation
 
@@ -246,7 +250,7 @@ func main() {
 
 ### Hashing Functions
 
-Fcrypt includes hashing functions using SHA3-256 and BLAKE2b:
+Fcrypt includes hashing functions using SHA-256, SHA-512, SHA3-256 and BLAKE2b:
 
 ```go
 package main
