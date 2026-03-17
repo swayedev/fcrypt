@@ -1,4 +1,4 @@
-package fcrypt
+package keys
 
 import (
 	"crypto"
