@@ -176,33 +176,28 @@ func GenerateSaltAndKey(passphrase string, saltLength int, keyLength int) ([]byt
 func GenerateGCM(key []byte) (gcm cipher.AEAD, block cipher.Block, err error) {
 	block, err = aes.NewCipher(key)
 	if err != nil {
-		return
+		return nil, nil, fmt.Errorf("%w: %v", ErrFailedToCreateCipher, err)
 	}
 
 	gcm, err = cipher.NewGCM(block)
 	if err != nil {
-		return
+		return nil, nil, fmt.Errorf("%w: %v", ErrFailedToCreateGCM, err)
 	}
 	return
 }
 
-// GenerateGCMWithNonce generates a Galois/Counter Mode (GCM) cipher with a random nonce.
+// GenerateGCMWithNonce generates a Galois/Counter Mode (GCM) cipher with a random nonce equal to the block size.
 // It takes a key as input and returns the GCM cipher, the underlying block cipher,
 // the generated nonce, and any error that occurred during the process.
 func GenerateGCMWithNonce(key []byte) (gcm cipher.AEAD, block cipher.Block, nonce []byte, err error) {
-	block, err = aes.NewCipher(key)
+	gcm, block, err = GenerateGCM(key)
 	if err != nil {
 		return
 	}
 
-	gcm, err = cipher.NewGCM(block)
-	if err != nil {
-		return
-	}
-
-	nonce = make([]byte, gcm.NonceSize())
+	nonce = make([]byte, block.BlockSize())
 	if _, err = io.ReadFull(rand.Reader, nonce); err != nil {
-		return
+		return nil, nil, nil, fmt.Errorf("%w: %v", ErrFailedToReadData, err)
 	}
 	return
 }

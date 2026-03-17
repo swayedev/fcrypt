@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Added Parser module for parsing PEM public and private keys
 
 - Added function `GenerateSaltAndKey` combining `GenerateSalt` and `GenerateKey` functions into one
 
