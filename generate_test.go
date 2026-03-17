@@ -50,8 +50,8 @@ func TestGenerateCertificate(t *testing.T) {
 	// Test case 3: Invalid algorithm
 	algorithm = "InvalidAlgorithm"
 	cert, err = fcrypt.GenerateCertificate(algorithm)
-	if err != nil {
-		t.Errorf("GenerateCertificate() returned an error: %v", err)
+	if err == nil {
+		t.Errorf("GenerateCertificate() expected an error for invalid algorithm %s, got nil", algorithm)
 	}
 
 	if cert != nil {

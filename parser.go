@@ -95,8 +95,12 @@ func ParseOpenSSHPrivateKey(sshBytes []byte) (interface{}, error) {
 	}
 
 	switch key := parsedKey.(type) {
-	case *ecdsa.PrivateKey, ed25519.PrivateKey, *rsa.PrivateKey:
+	case *ecdsa.PrivateKey, *rsa.PrivateKey:
 		return key, nil
+	case ed25519.PrivateKey:
+		return key, nil
+	case *ed25519.PrivateKey:
+		return *key, nil
 	default:
 		return nil, fmt.Errorf("unsupported OpenSSH private key type: %T", key)
 	}
@@ -109,14 +113,12 @@ func ParseOpenSSHPublicKey(sshBytes []byte) (interface{}, error) {
 		return nil, fmt.Errorf("failed to parse OpenSSH public key: %v", err)
 	}
 
-	parsedKey, err := ssh.ParsePublicKey(pubKey.Marshal())
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse OpenSSH public key: %v", err)
+	cpk, ok := pubKey.(ssh.CryptoPublicKey)
+	if !ok {
+		return nil, fmt.Errorf("failed to parse OpenSSH public key: unsupported key type %T", pubKey)
 	}
 
-	parsedCryptoKey := parsedKey.(ssh.CryptoPublicKey)
-	pubCrypto := parsedCryptoKey.CryptoPublicKey()
-
+	pubCrypto := cpk.CryptoPublicKey()
 	return convertToCryptoPublicKey(pubCrypto, pubKey.Type())
 }
 

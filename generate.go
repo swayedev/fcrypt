@@ -133,7 +133,7 @@ func GenerateRsaPemKeys() (privKeyPEM []byte, pubKeyPEM []byte, err error) {
 		return nil, nil, err
 	}
 	pubKeyPEM = pem.EncodeToMemory(&pem.Block{
-		Type:  "RSA PUBLIC KEY",
+		Type:  "PUBLIC KEY",
 		Bytes: pubKeyBytes,
 	})
 

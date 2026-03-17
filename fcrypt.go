@@ -4,6 +4,9 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
+	"crypto/sha256"
+	"crypto/sha512"
+	"encoding/binary"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -186,7 +189,7 @@ func GenerateGCM(key []byte) (gcm cipher.AEAD, block cipher.Block, err error) {
 	return
 }
 
-// GenerateGCMWithNonce generates a Galois/Counter Mode (GCM) cipher with a random nonce equal to the block size.
+// GenerateGCMWithNonce generates a Galois/Counter Mode (GCM) cipher with a random nonce equal to the GCM nonce size.
 // It takes a key as input and returns the GCM cipher, the underlying block cipher,
 // the generated nonce, and any error that occurred during the process.
 func GenerateGCMWithNonce(key []byte) (gcm cipher.AEAD, block cipher.Block, nonce []byte, err error) {
@@ -195,7 +198,7 @@ func GenerateGCMWithNonce(key []byte) (gcm cipher.AEAD, block cipher.Block, nonc
 		return
 	}
 
-	nonce = make([]byte, block.BlockSize())
+	nonce = make([]byte, gcm.NonceSize())
 	if _, err = io.ReadFull(rand.Reader, nonce); err != nil {
 		return nil, nil, nil, fmt.Errorf("%w: %v", ErrFailedToReadData, err)
 	}
@@ -266,6 +269,11 @@ func EncryptFileToFile(data io.Reader, key []byte, chunkSize int, filePath strin
 		return fmt.Errorf("%w: %v", ErrFailedToCreateCipher, err)
 	}
 
+	aead, err := cipher.NewGCM(block)
+	if err != nil {
+		return fmt.Errorf("%w: %v", ErrFailedToCreateGCM, err)
+	}
+
 	file, err := os.Create(filePath)
 	if err != nil {
 		return fmt.Errorf("%w: %v", ErrFailedToCreateFile, err)
@@ -273,47 +281,42 @@ func EncryptFileToFile(data io.Reader, key []byte, chunkSize int, filePath strin
 	defer file.Close()
 
 	chunk := make([]byte, chunkSize)
-	nonce := make([]byte, GCMNonceSize) // 12 bytes nonce for GCM
+	nonce := make([]byte, aead.NonceSize())
+	lenBuf := make([]byte, 4)
 
 	for {
-		n, err := data.Read(chunk)
-		if err == io.EOF {
+		n, readErr := data.Read(chunk)
+		if readErr == io.EOF {
 			break
 		}
-		if err != nil {
+		if readErr != nil {
+			return fmt.Errorf("%w: %v", ErrFailedToReadData, readErr)
+		}
+
+		if _, err := io.ReadFull(rand.Reader, nonce); err != nil {
 			return fmt.Errorf("%w: %v", ErrFailedToReadData, err)
 		}
 
-		if _, err := rand.Read(nonce); err != nil {
-			return fmt.Errorf("%w: %v", ErrFailedToReadData, err)
+		ciphertext := aead.Seal(nil, nonce, chunk[:n], nil)
+		if len(ciphertext) > int(^uint32(0)) {
+			return fmt.Errorf("ciphertext chunk too large: %d", len(ciphertext))
 		}
 
-		encryptedChunk, err := EncryptChunk(block, chunk[:n], nonce)
-		if err != nil {
-			return fmt.Errorf("%w: %v", ErrFailedToCreateGCM, err)
-		}
+		binary.BigEndian.PutUint32(lenBuf, uint32(len(ciphertext)))
 
-		// Write nonce and encrypted chunk to file
+		// Record format: nonce || uint32(ciphertextLen) || ciphertext
 		if _, err := file.Write(nonce); err != nil {
 			return fmt.Errorf("%w: %v", ErrFailedToCreateFile, err)
 		}
-		if _, err := file.Write(encryptedChunk); err != nil {
+		if _, err := file.Write(lenBuf); err != nil {
+			return fmt.Errorf("%w: %v", ErrFailedToCreateFile, err)
+		}
+		if _, err := file.Write(ciphertext); err != nil {
 			return fmt.Errorf("%w: %v", ErrFailedToCreateFile, err)
 		}
 	}
 
 	return nil
-}
-
-// DecryptChunk decrypts an encrypted chunk of data using the provided block cipher, nonce, and encrypted chunk.
-// It returns the decrypted data or an error if decryption fails.
-func DecryptChunk(block cipher.Block, encryptedChunk []byte, nonce []byte) ([]byte, error) {
-	aesgcm, err := cipher.NewGCM(block)
-	if err != nil {
-		return nil, fmt.Errorf("%w: %v", ErrFailedToCreateGCM, err)
-	}
-
-	return aesgcm.Open(nil, nonce, encryptedChunk, nil)
 }
 
 // DecryptFileToFile decrypts the contents of an encrypted file and writes the decrypted data to a new file.
@@ -338,31 +341,48 @@ func DecryptFileToFile(encryptedFilePath, decryptedFilePath string, key []byte, 
 		return fmt.Errorf("%w: %v", ErrFailedToCreateCipher, err)
 	}
 
-	nonceSize := GCMNonceSize // 12 bytes nonce for GCM
-	chunk := make([]byte, chunkSize+nonceSize)
+	aead, err := cipher.NewGCM(block)
+	if err != nil {
+		return fmt.Errorf("%w: %v", ErrFailedToCreateGCM, err)
+	}
+
+	nonce := make([]byte, aead.NonceSize())
+	lenBuf := make([]byte, 4)
 
 	for {
-		n, err := encryptedFile.Read(chunk)
-		if err == io.EOF {
-			break
-		}
-		if err != nil {
+		// Read nonce
+		if _, err := io.ReadFull(encryptedFile, nonce); err != nil {
+			if errors.Is(err, io.EOF) {
+				break
+			}
 			return fmt.Errorf("%w: %v", ErrFailedToReadData, err)
 		}
 
-		nonce := chunk[:nonceSize]
-		encryptedChunk := chunk[nonceSize:n]
+		// Read ciphertext length
+		if _, err := io.ReadFull(encryptedFile, lenBuf); err != nil {
+			return fmt.Errorf("%w: %v", ErrFailedToReadData, err)
+		}
+		ctLen := binary.BigEndian.Uint32(lenBuf)
+		if ctLen == 0 {
+			return fmt.Errorf("invalid ciphertext length: 0")
+		}
 
-		decryptedChunk, err := DecryptChunk(block, encryptedChunk, nonce)
+		ciphertext := make([]byte, int(ctLen))
+		if _, err := io.ReadFull(encryptedFile, ciphertext); err != nil {
+			return fmt.Errorf("%w: %v", ErrFailedToReadData, err)
+		}
+
+		plaintext, err := aead.Open(nil, nonce, ciphertext, nil)
 		if err != nil {
 			return fmt.Errorf("%w: %v", ErrFailedToCreateGCM, err)
 		}
 
-		if _, err := decryptedFile.Write(decryptedChunk); err != nil {
+		if _, err := decryptedFile.Write(plaintext); err != nil {
 			return fmt.Errorf("%w: %v", ErrFailedToCreateFile, err)
 		}
 	}
 
+	_ = chunkSize // kept for API compatibility; chunking is implicit in the encrypted record stream
 	return nil
 }
 
@@ -392,47 +412,78 @@ func ReEncryptFileToFile(encryptedFilePath, decryptedFilePath string, oldKey []b
 	}
 	defer encryptedFile.Close()
 
-	decryptedFile, err := os.Create(decryptedFilePath)
+	outFile, err := os.Create(decryptedFilePath)
 	if err != nil {
 		return fmt.Errorf("%w: %v", ErrFailedToCreateFile, err)
 	}
-	defer decryptedFile.Close()
+	defer outFile.Close()
 
-	block, err := aes.NewCipher(oldKey)
+	oldBlock, err := aes.NewCipher(oldKey)
 	if err != nil {
 		return fmt.Errorf("%w: %v", ErrFailedToCreateCipher, err)
 	}
+	oldAEAD, err := cipher.NewGCM(oldBlock)
+	if err != nil {
+		return fmt.Errorf("%w: %v", ErrFailedToCreateGCM, err)
+	}
 
-	nonceSize := GCMNonceSize // 12 bytes nonce for GCM
-	chunk := make([]byte, chunkSize+nonceSize)
+	newBlock, err := aes.NewCipher(newKey)
+	if err != nil {
+		return fmt.Errorf("%w: %v", ErrFailedToCreateCipher, err)
+	}
+	newAEAD, err := cipher.NewGCM(newBlock)
+	if err != nil {
+		return fmt.Errorf("%w: %v", ErrFailedToCreateGCM, err)
+	}
+
+	nonce := make([]byte, oldAEAD.NonceSize())
+	lenBuf := make([]byte, 4)
+	newNonce := make([]byte, newAEAD.NonceSize())
+	outLenBuf := make([]byte, 4)
 
 	for {
-		n, err := encryptedFile.Read(chunk)
-		if err == io.EOF {
-			break
+		if _, err := io.ReadFull(encryptedFile, nonce); err != nil {
+			if errors.Is(err, io.EOF) {
+				break
+			}
+			return fmt.Errorf("%w: %v", ErrFailedToReadData, err)
 		}
-		if err != nil {
+		if _, err := io.ReadFull(encryptedFile, lenBuf); err != nil {
+			return fmt.Errorf("%w: %v", ErrFailedToReadData, err)
+		}
+		ctLen := binary.BigEndian.Uint32(lenBuf)
+		if ctLen == 0 {
+			return fmt.Errorf("invalid ciphertext length: 0")
+		}
+
+		ciphertext := make([]byte, int(ctLen))
+		if _, err := io.ReadFull(encryptedFile, ciphertext); err != nil {
 			return fmt.Errorf("%w: %v", ErrFailedToReadData, err)
 		}
 
-		nonce := chunk[:nonceSize]
-		encryptedChunk := chunk[nonceSize:n]
-
-		decryptedChunk, err := DecryptChunk(block, encryptedChunk, nonce)
+		plaintext, err := oldAEAD.Open(nil, nonce, ciphertext, nil)
 		if err != nil {
 			return fmt.Errorf("%w: %v", ErrFailedToCreateGCM, err)
 		}
 
-		reEncryptedChunk, err := EncryptChunk(block, decryptedChunk, nonce)
-		if err != nil {
-			return fmt.Errorf("%w: %v", ErrFailedToCreateGCM, err)
+		if _, err := io.ReadFull(rand.Reader, newNonce); err != nil {
+			return fmt.Errorf("%w: %v", ErrFailedToReadData, err)
 		}
+		newCiphertext := newAEAD.Seal(nil, newNonce, plaintext, nil)
+		binary.BigEndian.PutUint32(outLenBuf, uint32(len(newCiphertext)))
 
-		if _, err := decryptedFile.Write(reEncryptedChunk); err != nil {
+		if _, err := outFile.Write(newNonce); err != nil {
+			return fmt.Errorf("%w: %v", ErrFailedToCreateFile, err)
+		}
+		if _, err := outFile.Write(outLenBuf); err != nil {
+			return fmt.Errorf("%w: %v", ErrFailedToCreateFile, err)
+		}
+		if _, err := outFile.Write(newCiphertext); err != nil {
 			return fmt.Errorf("%w: %v", ErrFailedToCreateFile, err)
 		}
 	}
 
+	_ = chunkSize
 	return nil
 }
 
@@ -528,7 +579,7 @@ func HashBytes(data []byte, hasher hash.Hash) []byte {
 
 // HashBytesToString calculates the hash of the given byte slice using the provided hash.Hash.
 func HashBytesToString(data []byte, hasher hash.Hash) string {
-	return HashBytesToStringSHA3(data)
+	return hex.EncodeToString(HashBytes(data, hasher))
 }
 
 // HashString calculates the hash of the given string using the provided hash.Hash.
@@ -548,6 +599,60 @@ func HashFile(file *os.File, hasher hash.Hash) ([]byte, error) {
 		return nil, err
 	}
 	return hasher.Sum(nil), nil
+}
+
+// Specific SHA-256 functions
+
+// HashBytesSHA256 calculates the SHA-256 hash of the given data.
+func HashBytesSHA256(data []byte) []byte {
+	return HashBytes(data, sha256.New())
+}
+
+// HashBytesToStringSHA256 converts a byte slice to a string representation of its SHA-256 hash.
+func HashBytesToStringSHA256(data []byte) string {
+	return hex.EncodeToString(HashBytes(data, sha256.New()))
+}
+
+// HashStringSHA256 hashes the given string using SHA-256 algorithm and returns the resulting hash as a byte slice.
+func HashStringSHA256(data string) []byte {
+	return HashString(data, sha256.New())
+}
+
+// HashStringToStringSHA256 hashes a string using SHA-256 algorithm and returns the hashed value as a string.
+func HashStringToStringSHA256(data string) string {
+	return HashStringToString(data, sha256.New())
+}
+
+// HashFileSHA256 calculates the SHA-256 hash of the given file.
+func HashFileSHA256(file *os.File) ([]byte, error) {
+	return HashFile(file, sha256.New())
+}
+
+// Specific SHA-512 functions
+
+// HashBytesSHA512 calculates the SHA-512 hash of the given data.
+func HashBytesSHA512(data []byte) []byte {
+	return HashBytes(data, sha512.New())
+}
+
+// HashBytesToStringSHA512 converts a byte slice to a string representation of its SHA-512 hash.
+func HashBytesToStringSHA512(data []byte) string {
+	return hex.EncodeToString(HashBytes(data, sha512.New()))
+}
+
+// HashStringSHA512 hashes the given string using SHA-512 algorithm and returns the resulting hash as a byte slice.
+func HashStringSHA512(data string) []byte {
+	return HashString(data, sha512.New())
+}
+
+// HashStringToStringSHA512 hashes a string using SHA-512 algorithm and returns the hashed value as a string.
+func HashStringToStringSHA512(data string) string {
+	return HashStringToString(data, sha512.New())
+}
+
+// HashFileSHA512 calculates the SHA-512 hash of the given file.
+func HashFileSHA512(file *os.File) ([]byte, error) {
+	return HashFile(file, sha512.New())
 }
 
 // Specific SHA3-256 functions
@@ -584,7 +689,7 @@ func HashFileSHA3(file *os.File) ([]byte, error) {
 // HashWithBlake2b512 hashes the contents of the provided io.Reader using BLAKE2b-512.
 // It returns the computed hash as a byte slice.
 func HashWithBlake2b512(reader io.Reader, key []byte) ([]byte, error) {
-	hasher, err := blake2b.New512(nil)
+	hasher, err := blake2b.New512(key)
 	if err != nil {
 		return nil, err
 	}
