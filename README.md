@@ -18,6 +18,10 @@ Fcrypt aims to stay **standard-library first** to minimize dependency overhead. 
 - Extensible key management with an interface for different key types.
 - Hashing functions using SHA-256, SHA-512, SHA3-256 and BLAKE2b.
 
+## Keys and certificates
+
+Key parsing and key generation helpers live in the `github.com/swayedev/fcrypt/keys` subpackage. The root `fcrypt` package keeps compatibility wrappers, but new code should prefer importing `fcrypt/keys` directly.
+
 ## Installation
 
 To install Fcrypt, use `go get`:

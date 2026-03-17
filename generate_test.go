@@ -7,13 +7,14 @@ import (
 	"testing"
 
 	"github.com/swayedev/fcrypt"
+	keys "github.com/swayedev/fcrypt/keys"
 )
 
 // WIP: Add more test cases to validate the GenerateCertificate function
 func TestGenerateCertificate(t *testing.T) {
 	// Test case 1: RSA algorithm
 	algorithm := "RSA"
-	cert, err := fcrypt.GenerateCertificate(algorithm)
+	cert, err := keys.GenerateCertificate(algorithm)
 	if err != nil {
 		t.Errorf("GenerateCertificate() returned an error: %v", err)
 	}
@@ -31,7 +32,7 @@ func TestGenerateCertificate(t *testing.T) {
 
 	// Test case 2: ED25519 algorithm
 	algorithm = "ED25519"
-	cert, err = fcrypt.GenerateCertificate(algorithm)
+	cert, err = keys.GenerateCertificate(algorithm)
 	if err != nil {
 		t.Errorf("GenerateCertificate() returned an error: %v", err)
 	}
@@ -49,7 +50,7 @@ func TestGenerateCertificate(t *testing.T) {
 
 	// Test case 3: Invalid algorithm
 	algorithm = "InvalidAlgorithm"
-	cert, err = fcrypt.GenerateCertificate(algorithm)
+	cert, err = keys.GenerateCertificate(algorithm)
 	if err == nil {
 		t.Errorf("GenerateCertificate() expected an error for invalid algorithm %s, got nil", algorithm)
 	}

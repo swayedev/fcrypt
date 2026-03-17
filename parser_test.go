@@ -12,7 +12,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/swayedev/fcrypt"
+	keys "github.com/swayedev/fcrypt/keys"
 	"golang.org/x/crypto/curve25519"
 	"golang.org/x/crypto/ssh"
 )
@@ -134,7 +134,7 @@ func TestParsePemPrivateKey(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := fcrypt.ParsePemPrivateKey(tt.pemData)
+			_, err := keys.ParsePemPrivateKey(tt.pemData)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("ParsePemPrivateKey() error = %v, wantErr %v", err, tt.wantErr)
 			}
@@ -157,7 +157,7 @@ func TestParsePemPublicKey(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := fcrypt.ParsePemPublicKey(tt.pemData)
+			_, err := keys.ParsePemPublicKey(tt.pemData)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("ParsePemPublicKey() error = %v, wantErr %v", err, tt.wantErr)
 			}
@@ -188,7 +188,7 @@ func TestParseOpenSSHPrivateKey(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := fcrypt.ParseOpenSSHPrivateKey(tt.sshData)
+			_, err := keys.ParseOpenSSHPrivateKey(tt.sshData)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("ParseOpenSSHPrivateKey() error = %v, wantErr %v", err, tt.wantErr)
 			}
@@ -219,7 +219,7 @@ func TestParseOpenSSHPublicKey(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := fcrypt.ParseOpenSSHPublicKey(tt.sshData)
+			_, err := keys.ParseOpenSSHPublicKey(tt.sshData)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("ParseOpenSSHPublicKey() error = %v, wantErr %v", err, tt.wantErr)
 			}
