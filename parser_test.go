@@ -8,6 +8,8 @@ import (
 	"crypto/rsa"
 	"crypto/x509"
 	"encoding/pem"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/swayedev/fcrypt"
@@ -164,13 +166,23 @@ func TestParsePemPublicKey(t *testing.T) {
 }
 
 func TestParseOpenSSHPrivateKey(t *testing.T) {
+	readKey := func(name string) []byte {
+		p := filepath.Join("test_keys", name)
+		b, err := os.ReadFile(p)
+		if err != nil {
+			t.Fatalf("failed to read %s: %v", p, err)
+		}
+		return b
+	}
+
 	tests := []struct {
 		name    string
 		sshData []byte
 		wantErr bool
 	}{
-		{"OpenSSH RSA Key", generateRSAPrivateKeyPEM(), false},
-		{"OpenSSH Ed25519 Key", generateEd25519PrivateKeyPEM(), false},
+		{"OpenSSH RSA Key", readKey("example_rsa"), false},
+		{"OpenSSH Ed25519 Key", readKey("example_ed25519"), false},
+		{"OpenSSH ECDSA Key", readKey("example_ecdsa"), false},
 		{"Invalid SSH Key", []byte("invalid data"), true},
 	}
 
@@ -185,12 +197,22 @@ func TestParseOpenSSHPrivateKey(t *testing.T) {
 }
 
 func TestParseOpenSSHPublicKey(t *testing.T) {
+	readKey := func(name string) []byte {
+		p := filepath.Join("test_keys", name)
+		b, err := os.ReadFile(p)
+		if err != nil {
+			t.Fatalf("failed to read %s: %v", p, err)
+		}
+		return b
+	}
+
 	tests := []struct {
 		name    string
 		sshData []byte
 		wantErr bool
 	}{
-		{"OpenSSH RSA Key", generateOpenSSHRSAKey(), false},
+		{"OpenSSH RSA Key (generated)", readKey("example_rsa.pub"), false},
+		{"OpenSSH RSA Key (in-memory)", generateOpenSSHRSAKey(), false},
 		{"OpenSSH Ed25519 Key", generateOpenSSHEd25519Key(), false},
 		{"Invalid SSH Key", []byte("invalid data"), true},
 	}
