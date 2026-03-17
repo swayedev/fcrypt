@@ -167,7 +167,7 @@ func TestParsePemPublicKey(t *testing.T) {
 
 func TestParseOpenSSHPrivateKey(t *testing.T) {
 	readKey := func(name string) []byte {
-		p := filepath.Join("test_keys", name)
+		p := filepath.Join("testdata", "keys", name)
 		b, err := os.ReadFile(p)
 		if err != nil {
 			t.Fatalf("failed to read %s: %v", p, err)
@@ -198,7 +198,7 @@ func TestParseOpenSSHPrivateKey(t *testing.T) {
 
 func TestParseOpenSSHPublicKey(t *testing.T) {
 	readKey := func(name string) []byte {
-		p := filepath.Join("test_keys", name)
+		p := filepath.Join("testdata", "keys", name)
 		b, err := os.ReadFile(p)
 		if err != nil {
 			t.Fatalf("failed to read %s: %v", p, err)
