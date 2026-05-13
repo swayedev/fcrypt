@@ -15,11 +15,14 @@ import (
 )
 
 const (
-	AlgorithmRSA     = "RSA"
-	AlgorithmED25519 = "ED25519"
-	AlgorithmECDSA   = "ECDSA"
-	AlgorithmX25519  = "X25519"
-	AlgorithmRSAOAEP = "RSA-OAEP"
+	AlgorithmRSA       = "RSA"
+	AlgorithmED25519   = "ED25519"
+	AlgorithmECDSA     = "ECDSA"
+	AlgorithmECDSAP256 = "ECDSA-P256"
+	AlgorithmECDSAP384 = "ECDSA-P384"
+	AlgorithmECDSAP521 = "ECDSA-P521"
+	AlgorithmX25519    = "X25519"
+	AlgorithmRSAOAEP   = "RSA-OAEP"
 )
 
 type Certificate interface {
@@ -87,8 +90,12 @@ func GenerateCertificate(algorithm string) (Certificate, error) {
 		return generateCertificateKey(GenerateRsaPemKeys, algorithm)
 	case AlgorithmED25519:
 		return generateCertificateKey(GenerateEd25519PemKeys, algorithm)
-	case AlgorithmECDSA:
+	case AlgorithmECDSA, AlgorithmECDSAP256:
 		return generateCertificateKey(GenerateEcdsaPemKeys, algorithm)
+	case AlgorithmECDSAP384:
+		return generateCertificateKey(GenerateEcdsaP384PemKeys, algorithm)
+	case AlgorithmECDSAP521:
+		return generateCertificateKey(GenerateEcdsaP521PemKeys, algorithm)
 	case AlgorithmX25519:
 		return generateCertificateKey(GenerateX25519PemKeys, algorithm)
 	case AlgorithmRSAOAEP:
@@ -173,9 +180,29 @@ func GenerateEd25519PemKeys() (privKeyPEM []byte, pubKeyPEM []byte, err error) {
 	return privKeyPEM, pubKeyPEM, nil
 }
 
-// Generate ECDSA Key
+// Generate ECDSA Key using P-256.
 func GenerateEcdsaPemKeys() ([]byte, []byte, error) {
-	privateKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	return GenerateEcdsaPemKeysWithCurve(elliptic.P256())
+}
+
+// GenerateEcdsaP256PemKeys generates ECDSA P-256 keys.
+func GenerateEcdsaP256PemKeys() ([]byte, []byte, error) {
+	return GenerateEcdsaPemKeysWithCurve(elliptic.P256())
+}
+
+// GenerateEcdsaP384PemKeys generates ECDSA P-384 keys.
+func GenerateEcdsaP384PemKeys() ([]byte, []byte, error) {
+	return GenerateEcdsaPemKeysWithCurve(elliptic.P384())
+}
+
+// GenerateEcdsaP521PemKeys generates ECDSA P-521 keys.
+func GenerateEcdsaP521PemKeys() ([]byte, []byte, error) {
+	return GenerateEcdsaPemKeysWithCurve(elliptic.P521())
+}
+
+// GenerateEcdsaPemKeysWithCurve generates ECDSA PEM keys for a supported curve.
+func GenerateEcdsaPemKeysWithCurve(curve elliptic.Curve) ([]byte, []byte, error) {
+	privateKey, err := ecdsa.GenerateKey(curve, rand.Reader)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -199,6 +226,43 @@ func GenerateEcdsaPemKeys() ([]byte, []byte, error) {
 	})
 
 	return privKeyPEM, pubKeyPEM, nil
+}
+
+// GenerateOpenSSHEcdsaKeys generates an ECDSA P-256 private key in PEM format
+// and a public key in OpenSSH authorized_keys format.
+func GenerateOpenSSHEcdsaKeys() ([]byte, []byte, error) {
+	return GenerateOpenSSHEcdsaKeysWithCurve(elliptic.P256())
+}
+
+// GenerateOpenSSHEcdsaP384Keys generates ECDSA P-384 OpenSSH-compatible keys.
+func GenerateOpenSSHEcdsaP384Keys() ([]byte, []byte, error) {
+	return GenerateOpenSSHEcdsaKeysWithCurve(elliptic.P384())
+}
+
+// GenerateOpenSSHEcdsaP521Keys generates ECDSA P-521 OpenSSH-compatible keys.
+func GenerateOpenSSHEcdsaP521Keys() ([]byte, []byte, error) {
+	return GenerateOpenSSHEcdsaKeysWithCurve(elliptic.P521())
+}
+
+// GenerateOpenSSHEcdsaKeysWithCurve generates ECDSA keys for a supported OpenSSH curve.
+func GenerateOpenSSHEcdsaKeysWithCurve(curve elliptic.Curve) ([]byte, []byte, error) {
+	privateKey, err := ecdsa.GenerateKey(curve, rand.Reader)
+	if err != nil {
+		return nil, nil, err
+	}
+	privKeyBytes, err := x509.MarshalECPrivateKey(privateKey)
+	if err != nil {
+		return nil, nil, err
+	}
+	privPEM := pem.EncodeToMemory(&pem.Block{
+		Type:  "EC PRIVATE KEY",
+		Bytes: privKeyBytes,
+	})
+	pubKey, err := ssh.NewPublicKey(&privateKey.PublicKey)
+	if err != nil {
+		return nil, nil, err
+	}
+	return privPEM, ssh.MarshalAuthorizedKey(pubKey), nil
 }
 
 // Generate X25519 Key

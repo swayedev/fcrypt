@@ -34,6 +34,8 @@ Legacy AES-CTR streams do not provide authentication or integrity. Re-encrypt le
 
 Key parsing and key generation helpers live in the `github.com/swayedev/fcrypt/keys` subpackage. The root `fcrypt` package keeps compatibility wrappers, but new code should prefer importing `fcrypt/keys` directly.
 
+Supported generated key families include RSA, RSA-OAEP, Ed25519, X25519, and ECDSA P-256/P-384/P-521. OpenSSH helpers are available for RSA, Ed25519, and ECDSA P-256/P-384/P-521 public-key output. secp256k1 is intentionally not included in core because it requires an additional third-party curve dependency.
+
 ## Installation
 
 To install Fcrypt, use `go get`:

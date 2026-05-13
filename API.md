@@ -190,6 +190,20 @@ Adapter packages live outside the core package so provider dependencies stay opt
 - `adapters/gcpkms`: Google Cloud KMS wrapper around a caller-supplied minimal client interface.
 - `adapters/azurekeyvault`: Azure Key Vault wrapper around a caller-supplied minimal client interface.
 
+### Key generation and parsing
+
+Key parsing and generation helpers live in `github.com/swayedev/fcrypt/keys`.
+
+Supported generated key families include:
+
+- RSA and RSA-OAEP.
+- Ed25519.
+- X25519.
+- ECDSA P-256, P-384, and P-521 PEM keys.
+- OpenSSH RSA, Ed25519, and ECDSA P-256/P-384/P-521 public-key output.
+
+PEM and OpenSSH parsers support the corresponding standard Go/x/crypto key types. secp256k1 is intentionally not included in core because it requires an extra third-party curve dependency.
+
 ## Conventions
 
 - Functions should accept raw `[]byte` keys to keep the API composable.

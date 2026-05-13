@@ -201,9 +201,11 @@ The core package already includes `MemoryKeyStore` and `LocalKeyWrapper` as depe
 1. **Extended elliptic curve support**
    - **Goal**: Support additional curves where it improves interoperability.
    - **Details**:
+     - Add named ECDSA P-256, P-384, and P-521 key generation.
+     - Add OpenSSH ECDSA P-256, P-384, and P-521 key generation.
      - Evaluate secp256k1 and any required third-party dependencies.
      - Ensure key parsing/encoding remains explicit and test-backed.
-   - **Status**: In development.
+   - **Status**: Complete for 0.6.0. secp256k1 remains intentionally excluded from core to preserve the dependency policy.
 
 ## 1.0.0 — “Stable by Default” Release
 
