@@ -12,7 +12,7 @@ Fcrypt aims to stay **standard-library first** to minimize dependency overhead. 
 ## Features
 
 - Encrypt and decrypt data with AES-GCM.
-- Stream encryption and decryption.
+- Authenticated stream encryption and decryption.
 - Encrypt large data and files in chunks.
 - Key rotation and re-encryption support.
 - Extensible key management with an interface for different key types.
@@ -340,8 +340,8 @@ func main() {
 - `Encrypt(data []byte, key []byte) ([]byte, error)`: Encrypts data.
 - `Decrypt(data []byte, key []byte) ([]byte, error)`: Decrypts data.
 - `ReEncrypt(data []byte, oldKey []byte, newKey []byte) ([]byte, error)`: Re-encrypts data with a new key.
-- `StreamEncrypt(data io.Reader, key []byte) (io.Reader, error)`: Encrypts data stream.
-- `StreamDecrypt(data io.Reader, key []byte) (io.Reader, error)`: Decrypts data stream.
+- `StreamEncrypt(data io.Reader, key []byte) (io.Reader, error)`: Encrypts data as an authenticated AES-GCM record stream.
+- `StreamDecrypt(data io.Reader, key []byte) (io.Reader, error)`: Decrypts an authenticated AES-GCM record stream.
 - `StreamReEncrypt(data io.Reader, oldKey []byte, newKey []byte) (io.Reader, error)`: Re-encrypts data stream with a new key.
 - `EncryptFileToFile(data io.Reader, key []byte, chunkSize int, filePath string) error`: Encrypts data from a reader and writes it to a file.
 - `DecryptFileToFile(encryptedFilePath, decryptedFilePath string, key []byte, chunkSize int) error`: Decrypts data from an encrypted file and writes it to a new file.

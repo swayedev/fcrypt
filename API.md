@@ -63,8 +63,8 @@ This document defines the intended public API for **fcrypt**, including stabilit
 
 ### Streaming
 
-- Streaming APIs must clearly document whether they provide **authentication/integrity**.
-- If an API is unauthenticated (e.g., CTR), it must be named/documented accordingly.
+- Streaming APIs provide **authentication/integrity** using the same versioned AES-GCM record format as file encryption.
+- Unauthenticated streaming modes are not default APIs.
 
 ## Public API surface (intended)
 
@@ -101,7 +101,13 @@ Planned examples:
 - `DecryptFileToFile(inPath, outPath string, key []byte, chunkSize int) error`
 - `ReEncryptFileToFile(inPath, outPath string, oldKey, newKey []byte, chunkSize int) error`
 
-**Record contract** (files): repeated records of:
+**File/container contract**:
+
+- Header: `FCRYPT || version || algorithm || nonceSize || lenSize`
+- Version `1`
+- Algorithm `1` = AES-GCM
+
+After the header, files contain repeated records of:
 
 - `nonce || uint32(ciphertextLen) || ciphertext`
 
@@ -110,6 +116,7 @@ Notes:
 - Records are self-framing.
 - `chunkSize` controls plaintext read size; the file format itself is record-oriented.
 - AEAD authentication happens per-record; callers should treat any authentication failure as fatal.
+- Decryptors reject unsupported versions, unsupported algorithms, truncated records, and oversized record lengths before allocating ciphertext buffers.
 
 ### Hashing
 
@@ -132,6 +139,8 @@ Two layers are supported:
      - `HashWithBlake2b256`, `HashWithBlake2b256NoKey`
      - `HashWithBlake2b512`, `HashWithBlake2b512NoKey`
 
+Callers can also use `HashAlgorithm` with `NewHasher` / `NewHash` to select supported algorithms without constructing hashers directly.
+
 ### Key rotation
 
 Key rotation is supported at the API level (key versioning + re-encryption) and is intended to remain simple:
@@ -149,8 +158,4 @@ Key rotation is supported at the API level (key versioning + re-encryption) and 
 
 ## Planned additions (non-breaking)
 
-- Hash selection enum:
-  - `type HashAlgorithm ...`
-  - `NewHasher(algo)` and `NewHash(algo)` helpers.
-- File format header (magic + version + algorithm id) to make encrypted files self-describing.
-- Authenticated streaming format (chunked AEAD) with explicit versioning.
+- Additional versioned container metadata as needed for future algorithms and adapters.
