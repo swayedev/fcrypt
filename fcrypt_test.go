@@ -292,6 +292,55 @@ func TestStreamDecryptRejectsTampering(t *testing.T) {
 	}
 }
 
+func TestStreamDecryptSupportsLegacyCTR(t *testing.T) {
+	key := bytes.Repeat([]byte{4}, fcrypt.DefaultKeyLength)
+	data := []byte("legacy ctr stream")
+
+	legacyStream, err := fcrypt.LegacyStreamEncrypt(bytes.NewReader(data), key)
+	if err != nil {
+		t.Fatalf("LegacyStreamEncrypt() error = %v", err)
+	}
+	legacyData, err := io.ReadAll(legacyStream)
+	if err != nil {
+		t.Fatalf("ReadAll(legacyStream) error = %v", err)
+	}
+
+	decryptedStream, err := fcrypt.StreamDecrypt(bytes.NewReader(legacyData), key)
+	if err != nil {
+		t.Fatalf("StreamDecrypt() error = %v", err)
+	}
+	decrypted, err := io.ReadAll(decryptedStream)
+	if err != nil {
+		t.Fatalf("ReadAll(decryptedStream) error = %v", err)
+	}
+	if !bytes.Equal(data, decrypted) {
+		t.Fatalf("legacy stream decrypt mismatch: got %q want %q", decrypted, data)
+	}
+}
+
+func TestDecryptFileSupportsLegacyRecordFormat(t *testing.T) {
+	key := bytes.Repeat([]byte{5}, fcrypt.DefaultKeyLength)
+	data := []byte("legacy file records")
+	dir := t.TempDir()
+	legacyFile := dir + "/legacy.fcrypt"
+	decryptedFile := dir + "/legacy.txt"
+
+	if err := fcrypt.LegacyEncryptFileToFile(bytes.NewReader(data), key, 4096, legacyFile); err != nil {
+		t.Fatalf("LegacyEncryptFileToFile() error = %v", err)
+	}
+	if err := fcrypt.DecryptFileToFile(legacyFile, decryptedFile, key, 4096); err != nil {
+		t.Fatalf("DecryptFileToFile() error = %v", err)
+	}
+
+	decrypted, err := os.ReadFile(decryptedFile)
+	if err != nil {
+		t.Fatalf("ReadFile() error = %v", err)
+	}
+	if !bytes.Equal(data, decrypted) {
+		t.Fatalf("legacy file decrypt mismatch: got %q want %q", decrypted, data)
+	}
+}
+
 func TestNewHasher(t *testing.T) {
 	hasher, err := fcrypt.NewHasher(fcrypt.HashAlgorithmSHA256)
 	if err != nil {

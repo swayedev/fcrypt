@@ -1,6 +1,7 @@
 package fcrypt
 
 import (
+	"bytes"
 	"crypto/cipher"
 	"crypto/rand"
 	"encoding/binary"
@@ -34,6 +35,18 @@ func writeFormatHeader(w io.Writer, aead cipher.AEAD) error {
 	header[len(fileMagic)+3] = recordLenSize
 	_, err := w.Write(header)
 	return err
+}
+
+func hasFormatHeader(r io.Reader) (bool, io.Reader, error) {
+	prefix := make([]byte, len(fileMagic))
+	n, err := io.ReadFull(r, prefix)
+	if err != nil {
+		if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
+			return false, io.MultiReader(bytes.NewReader(prefix[:n]), r), nil
+		}
+		return false, nil, fmt.Errorf("%w: %v", ErrFailedToReadData, err)
+	}
+	return string(prefix) == string(fileMagic[:]), io.MultiReader(bytes.NewReader(prefix), r), nil
 }
 
 func readFormatHeader(r io.Reader, aead cipher.AEAD) (formatHeader, error) {
@@ -135,6 +148,74 @@ func readEncryptedRecords(r io.Reader, w io.Writer, aead cipher.AEAD, chunkSize 
 	}
 	if _, err := readFormatHeader(r, aead); err != nil {
 		return err
+	}
+
+	nonce := make([]byte, aead.NonceSize())
+	lenBuf := make([]byte, recordLenSize)
+	maxLen := maxRecordSize(chunkSize, aead)
+
+	for {
+		if checkContext != nil {
+			if err := checkContext(); err != nil {
+				return err
+			}
+		}
+
+		if _, err := io.ReadFull(r, nonce); err != nil {
+			if errors.Is(err, io.EOF) {
+				break
+			}
+			if errors.Is(err, io.ErrUnexpectedEOF) {
+				return fmt.Errorf("%w: nonce", ErrTruncatedRecord)
+			}
+			return fmt.Errorf("%w: %v", ErrFailedToReadData, err)
+		}
+
+		if _, err := io.ReadFull(r, lenBuf); err != nil {
+			if errors.Is(err, io.ErrUnexpectedEOF) || errors.Is(err, io.EOF) {
+				return fmt.Errorf("%w: length", ErrTruncatedRecord)
+			}
+			return fmt.Errorf("%w: %v", ErrFailedToReadData, err)
+		}
+
+		ctLen := int(binary.BigEndian.Uint32(lenBuf))
+		if ctLen <= aead.Overhead() || ctLen > maxLen {
+			return fmt.Errorf("%w: %d", ErrInvalidRecordLength, ctLen)
+		}
+
+		ciphertext := make([]byte, ctLen)
+		if _, err := io.ReadFull(r, ciphertext); err != nil {
+			if errors.Is(err, io.ErrUnexpectedEOF) || errors.Is(err, io.EOF) {
+				return fmt.Errorf("%w: ciphertext", ErrTruncatedRecord)
+			}
+			return fmt.Errorf("%w: %v", ErrFailedToReadData, err)
+		}
+
+		plaintext, err := aead.Open(nil, nonce, ciphertext, nil)
+		if err != nil {
+			return fmt.Errorf("%w: %v", ErrAuthenticationFailed, err)
+		}
+		if _, err := w.Write(plaintext); err != nil {
+			return fmt.Errorf("%w: %v", ErrFailedToCreateFile, err)
+		}
+	}
+	return nil
+}
+
+func readAnyEncryptedRecords(r io.Reader, w io.Writer, aead cipher.AEAD, chunkSize int, checkContext func() error) error {
+	versioned, reader, err := hasFormatHeader(r)
+	if err != nil {
+		return err
+	}
+	if versioned {
+		return readEncryptedRecords(reader, w, aead, chunkSize, checkContext)
+	}
+	return readLegacyEncryptedRecords(reader, w, aead, chunkSize, checkContext)
+}
+
+func readLegacyEncryptedRecords(r io.Reader, w io.Writer, aead cipher.AEAD, chunkSize int, checkContext func() error) error {
+	if chunkSize <= 0 {
+		return ErrChunkSizeTooSmall
 	}
 
 	nonce := make([]byte, aead.NonceSize())

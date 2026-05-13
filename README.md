@@ -18,6 +18,16 @@ Fcrypt aims to stay **standard-library first** to minimize dependency overhead. 
 - Extensible key management with an interface for different key types.
 - Hashing functions using SHA-256, SHA-512, SHA3-256 and BLAKE2b.
 
+## Compatibility note
+
+Version 0.3 adds a versioned AES-GCM record format for new file and stream encryption. Decrypt paths can still read older fcrypt data:
+
+- `DecryptFileToFile` and `ReEncryptFileToFile` can read the older headerless AES-GCM file record format.
+- `StreamDecrypt` can read older AES-CTR streams for migration.
+- `LegacyStreamEncrypt`, `LegacyStreamDecrypt`, and `LegacyEncryptFileToFile` are provided only for compatibility and migration workflows.
+
+Legacy AES-CTR streams do not provide authentication or integrity. Re-encrypt legacy data with the current APIs as soon as practical.
+
 ## Keys and certificates
 
 Key parsing and key generation helpers live in the `github.com/swayedev/fcrypt/keys` subpackage. The root `fcrypt` package keeps compatibility wrappers, but new code should prefer importing `fcrypt/keys` directly.

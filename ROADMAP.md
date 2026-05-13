@@ -60,7 +60,7 @@ Before fcrypt is presented as production-ready, it should satisfy these release 
    - **Details**:
      - Add a small header (magic + version + algorithm IDs + nonce size) so formats are self-describing.
      - Provide compatibility for older “nonce||ciphertext” layouts if they ever shipped.
-   - **Status**: Complete for 0.3.0.
+   - **Status**: Complete for 0.3+. Decryptors can read the older headerless file record format for migration.
 
 3. **Hash algorithm selection API**
    - **Goal**: Let callers choose SHA-3, SHA-256, or SHA-512 without having to wire hashers manually.
@@ -75,7 +75,7 @@ Before fcrypt is presented as production-ready, it should satisfy these release 
      - Option A: chunked AEAD (recommended) with per-chunk nonce + length framing.
      - Option B: CTR + HMAC (only if explicitly requested; not default).
      - Document the security properties and expected use cases.
-   - **Status**: Complete for 0.3.0. Streaming now uses authenticated AES-GCM records by default.
+   - **Status**: Complete for 0.3+. Streaming now uses authenticated AES-GCM records by default, and `StreamDecrypt` can read pre-0.3 AES-CTR streams for migration.
 
 5. **Malformed input hardening**
    - **Goal**: Make decrypt/re-encrypt safe against hostile or corrupted input.
@@ -119,19 +119,19 @@ Before fcrypt is presented as production-ready, it should satisfy these release 
    - **Goal**: Keep adapter contracts small enough for OpenBao, Vault, cloud KMS, and local stores.
    - **Draft interfaces**:
 
-```go
-type KeyStore interface {
-    Put(ctx context.Context, key Key) error
-    Get(ctx context.Context, version string) (Key, error)
-    Current(ctx context.Context) (Key, error)
-    Rotate(ctx context.Context, policy RotationPolicy) (Key, error)
-}
+   ```go
+   type KeyStore interface {
+      Put(ctx context.Context, key Key) error
+      Get(ctx context.Context, version string) (Key, error)
+      Current(ctx context.Context) (Key, error)
+      Rotate(ctx context.Context, policy RotationPolicy) (Key, error)
+   }
 
-type KeyWrapper interface {
-    WrapKey(ctx context.Context, plaintextKey []byte, opts WrapOptions) (WrappedKey, error)
-    UnwrapKey(ctx context.Context, wrapped WrappedKey) ([]byte, error)
-}
-```
+   type KeyWrapper interface {
+      WrapKey(ctx context.Context, plaintextKey []byte, opts WrapOptions) (WrappedKey, error)
+      UnwrapKey(ctx context.Context, wrapped WrappedKey) ([]byte, error)
+   }
+   ```
 
    - **Status**: Draft.
 

@@ -65,6 +65,8 @@ This document defines the intended public API for **fcrypt**, including stabilit
 
 - Streaming APIs provide **authentication/integrity** using the same versioned AES-GCM record format as file encryption.
 - Unauthenticated streaming modes are not default APIs.
+- `StreamDecrypt` can read pre-0.3 AES-CTR streams for migration. These legacy streams are unauthenticated, so callers should decrypt and immediately re-encrypt them with `StreamEncrypt`.
+- `LegacyStreamEncrypt` and `LegacyStreamDecrypt` are available only for compatibility and migration workflows.
 
 ## Public API surface (intended)
 
@@ -117,6 +119,8 @@ Notes:
 - `chunkSize` controls plaintext read size; the file format itself is record-oriented.
 - AEAD authentication happens per-record; callers should treat any authentication failure as fatal.
 - Decryptors reject unsupported versions, unsupported algorithms, truncated records, and oversized record lengths before allocating ciphertext buffers.
+- `DecryptFileToFile` and `ReEncryptFileToFile` can read the pre-0.3 headerless AES-GCM record format. New writes always use the versioned header.
+- `LegacyEncryptFileToFile` exists only for compatibility tests and controlled migration workflows.
 
 ### Hashing
 
