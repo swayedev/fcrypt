@@ -2,6 +2,12 @@
 
 This document defines the intended public API for **fcrypt**, including stability goals, dependency policy, and security guarantees.
 
+For release-candidate review, also see:
+
+- `THREAT_MODEL.md`
+- `MIGRATION.md`
+- `API_FREEZE.md`
+
 ## Goals
 
 - Make encryption **easy and ergonomic** for Go developers.

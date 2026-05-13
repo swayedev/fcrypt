@@ -5,6 +5,15 @@
 
 Fcrypt is a flexible and secure encryption package for Go, providing easy-to-use functions for encrypting and decrypting data using AES-GCM (Galois/Counter Mode). This package is designed for simplicity and security, making it suitable for various applications requiring data protection.
 
+## Release status
+
+`v1.0.0-rc1` is the release candidate for the first stable fcrypt API. Before adopting it for production, review:
+
+- [Threat model](THREAT_MODEL.md)
+- [Migration guide](MIGRATION.md)
+- [API freeze checklist](API_FREEZE.md)
+- [Public API contract](API.md)
+
 ## Dependency philosophy
 
 Fcrypt aims to stay **standard-library first** to minimize dependency overhead. When functionality is not available in the standard library, Fcrypt may use packages under **`golang.org/x/*`** (the extended Go libraries maintained by the Go team). Fcrypt intentionally avoids third-party dependencies outside of the Go standard library and `golang.org/x/*`.
@@ -29,6 +38,8 @@ Version 0.3 adds a versioned AES-GCM record format for new file and stream encry
 - `LegacyStreamEncrypt`, `LegacyStreamDecrypt`, and `LegacyEncryptFileToFile` are provided only for compatibility and migration workflows.
 
 Legacy AES-CTR streams do not provide authentication or integrity. Re-encrypt legacy data with the current APIs as soon as practical.
+
+See [MIGRATION.md](MIGRATION.md) for concrete migration examples.
 
 ## Keys and certificates
 
