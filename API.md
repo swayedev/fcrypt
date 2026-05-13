@@ -179,6 +179,17 @@ type KeyWrapper interface {
 
 The core package includes `LocalKeyWrapper`, an AES-GCM wrapper backed by a local wrapping key. Production secret-manager adapters should implement the same interface in optional packages.
 
+### Adapter packages
+
+Adapter packages live outside the core package so provider dependencies stay optional:
+
+- `adapters/memory`: dependency-free memory key store and local key wrapper.
+- `adapters/openbao`: OpenBao transit key wrapper using standard-library HTTP.
+- `adapters/vault`: Vault transit key wrapper using standard-library HTTP.
+- `adapters/awskms`: AWS KMS wrapper around a caller-supplied minimal client interface.
+- `adapters/gcpkms`: Google Cloud KMS wrapper around a caller-supplied minimal client interface.
+- `adapters/azurekeyvault`: Azure Key Vault wrapper around a caller-supplied minimal client interface.
+
 ## Conventions
 
 - Functions should accept raw `[]byte` keys to keep the API composable.

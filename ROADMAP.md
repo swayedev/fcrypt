@@ -156,7 +156,7 @@ The core package already includes `MemoryKeyStore` and `LocalKeyWrapper` as depe
      - Re-export the core `MemoryKeyStore` and `LocalKeyWrapper`.
      - Keep the package dependency-free.
      - Useful for tests, small deployments, local development, and users who want a consistent adapter import path before moving to an external backend.
-   - **Status**: Complete for 0.4.0.
+   - **Status**: Complete.
 
 2. **OpenBao adapter**
    - **Goal**: Support OpenBao-backed key storage and envelope encryption.
@@ -166,14 +166,14 @@ The core package already includes `MemoryKeyStore` and `LocalKeyWrapper` as depe
      - Support explicit mount/path configuration.
      - Keep OpenBao client dependencies isolated to the adapter package.
      - Add integration tests that can run against a local OpenBao dev container.
-   - **Status**: Planned.
+   - **Status**: Complete for 0.5.0.
 
 3. **Vault-compatible adapter**
    - **Goal**: Support HashiCorp Vault or Vault-compatible deployments where needed.
    - **Details**:
      - Keep separate from OpenBao if client libraries or auth flows diverge.
      - Prefer the same `KeyStore`/`KeyWrapper` contract.
-   - **Status**: Planned.
+   - **Status**: Complete for 0.5.0.
 
 4. **Cloud KMS integrations**
    - **Goal**: Optional integration with major cloud providers.
@@ -183,7 +183,7 @@ The core package already includes `MemoryKeyStore` and `LocalKeyWrapper` as depe
      - Azure Key Vault.
      - Keep provider SDKs out of the core module when possible (submodules or build tags).
      - Provide a consistent envelope-encryption workflow.
-   - **Status**: Research and planning.
+   - **Status**: Complete for 0.5.0 as SDK-neutral adapters around caller-supplied clients.
 
 5. **Adapter acceptance criteria**
    - **Goal**: Make adapters reliable enough for production use.
@@ -194,7 +194,7 @@ The core package already includes `MemoryKeyStore` and `LocalKeyWrapper` as depe
      - Clear auth/config documentation.
      - No secret values in logs or error strings.
      - Stable error wrapping so callers can distinguish missing keys, permission failures, backend unavailability, and unwrap/authentication failures.
-   - **Status**: Planned.
+   - **Status**: Complete for 0.5.0.
 
 ## 0.6.0 — Extended Elliptic Curve & Interop
 

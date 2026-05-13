@@ -327,6 +327,17 @@ store, err := memory.NewKeyStore()
 wrapper, err := memory.NewKeyWrapper("local-v1", wrappingKey)
 ```
 
+Optional adapter packages are available for secret-manager and KMS workflows:
+
+- `github.com/swayedev/fcrypt/adapters/memory`
+- `github.com/swayedev/fcrypt/adapters/openbao`
+- `github.com/swayedev/fcrypt/adapters/vault`
+- `github.com/swayedev/fcrypt/adapters/awskms`
+- `github.com/swayedev/fcrypt/adapters/gcpkms`
+- `github.com/swayedev/fcrypt/adapters/azurekeyvault`
+
+OpenBao and Vault adapters use transit-compatible HTTP APIs. Cloud KMS adapters are SDK-neutral: pass in a small client implementation backed by the cloud SDK version your application already uses.
+
 ### Hashing Functions
 
 Fcrypt includes hashing functions using SHA-256, SHA-512, SHA3-256 and BLAKE2b:
