@@ -15,6 +15,8 @@ Fcrypt aims to stay **standard-library first** to minimize dependency overhead. 
 - Authenticated stream encryption and decryption.
 - Encrypt large data and files in chunks.
 - Key rotation and re-encryption support.
+- Context-aware `KeyStore` support for versioned key lookup and rotation.
+- Envelope key wrapping support through a small `KeyWrapper` interface.
 - Extensible key management with an interface for different key types.
 - Hashing functions using SHA-256, SHA-512, SHA3-256 and BLAKE2b.
 
@@ -260,6 +262,69 @@ func main() {
     fmt.Printf("Original data: %s\n", data)
     fmt.Printf("Decrypted data: %s\n", decryptedData)
 }
+```
+
+### Key Stores and Envelope Wrapping
+
+For newer code, prefer the `KeyStore` API. It gives callers a common contract for in-memory stores, OpenBao/Vault adapters, and cloud KMS adapters.
+
+```go
+ctx := context.Background()
+store, err := fcrypt.NewMemoryKeyStore()
+if err != nil {
+    log.Fatal(err)
+}
+
+key, err := store.Rotate(ctx, fcrypt.RotationPolicy{
+    Passphrase: "your-secure-passphrase",
+    Version:    "v1",
+})
+if err != nil {
+    log.Fatal(err)
+}
+
+current, err := store.Current(ctx)
+if err != nil {
+    log.Fatal(err)
+}
+
+encrypted, err := fcrypt.Encrypt([]byte("Sensitive data here"), current.KeyBytes())
+if err != nil {
+    log.Fatal(err)
+}
+
+_ = key
+_ = encrypted
+```
+
+For envelope encryption workflows, implement or use a `KeyWrapper`. The core package includes a local AES-GCM wrapper for tests, local development, and adapter contract validation.
+
+```go
+wrapper, err := fcrypt.NewLocalKeyWrapper("local-v1", wrappingKey)
+if err != nil {
+    log.Fatal(err)
+}
+
+wrapped, err := wrapper.WrapKey(ctx, dataKey, fcrypt.WrapOptions{
+    AAD: []byte("file-id:123"),
+})
+if err != nil {
+    log.Fatal(err)
+}
+
+unwrapped, err := wrapper.UnwrapKey(ctx, wrapped)
+if err != nil {
+    log.Fatal(err)
+}
+```
+
+Users who want the adapter package shape without a secret manager can import the dependency-free memory adapter:
+
+```go
+import "github.com/swayedev/fcrypt/adapters/memory"
+
+store, err := memory.NewKeyStore()
+wrapper, err := memory.NewKeyWrapper("local-v1", wrappingKey)
 ```
 
 ### Hashing Functions

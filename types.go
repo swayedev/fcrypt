@@ -34,12 +34,12 @@ func (k *FcryptKey) Version() string {
 // The salt is used as an additional input to the key derivation function,
 // making it harder to perform precomputed dictionary attacks.
 func (k *FcryptKey) SetSalt(s []byte) {
-	k.salt = s
+	k.salt = cloneBytes(s)
 }
 
 // Salt returns the salt value associated with the FcryptKey.
 func (k *FcryptKey) Salt() []byte {
-	return k.salt
+	return cloneBytes(k.salt)
 }
 
 // SetAlgo sets the encryption algorithm for the FcryptKey.
@@ -56,29 +56,29 @@ func (k *FcryptKey) Algo() string {
 // SetKeyBytes sets the key bytes for the FcryptKey instance.
 // The key parameter is a byte slice containing the key bytes.
 func (k *FcryptKey) SetKeyBytes(key []byte) {
-	k.key = key
+	k.key = cloneBytes(key)
 }
 
 // KeyBytes returns the key bytes of the FcryptKey.
 func (k *FcryptKey) KeyBytes() []byte {
-	return k.key
+	return cloneBytes(k.key)
 }
 
 // SetAll sets the values of the FcryptKey struct.
 // It takes in the version string, salt byte slice, algorithm string, and key byte slice as parameters.
 func (k *FcryptKey) SetAll(v string, s []byte, a string, key []byte) {
 	k.version = v
-	k.salt = s
+	k.salt = cloneBytes(s)
 	k.algo = a
-	k.key = key
+	k.key = cloneBytes(key)
 }
 
 // NewFcryptKey creates a new FcryptKey with the specified version, salt, algorithm, and key.
 func NewFcryptKey(version string, salt []byte, algo string, key []byte) *FcryptKey {
 	return &FcryptKey{
 		version: version,
-		salt:    salt,
+		salt:    cloneBytes(salt),
 		algo:    algo,
-		key:     key,
+		key:     cloneBytes(key),
 	}
 }

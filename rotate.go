@@ -13,19 +13,18 @@ import (
 //
 // The returned version is the identifier used as the map key.
 func RotateKey(passphrase string, store map[string]Key, keyLength int) (string, error) {
-	salt, err := GenerateSalt(16)
+	key, err := deriveRotatedKey(RotationPolicy{
+		Passphrase: passphrase,
+		KDF: KDFConfig{
+			SaltLength: 16,
+			KeyLength:  keyLength,
+		},
+	})
 	if err != nil {
 		return "", err
 	}
-
-	keyBytes, err := GenerateKey(passphrase, salt, keyLength)
-	if err != nil {
-		return "", err
-	}
-
-	version := newKeyVersion()
-	store[version] = NewFcryptKey(version, salt, "AES-GCM", keyBytes)
-	return version, nil
+	store[key.Version()] = key
+	return key.Version(), nil
 }
 
 func newKeyVersion() string {

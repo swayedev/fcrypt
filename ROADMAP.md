@@ -93,7 +93,7 @@ Before fcrypt is presented as production-ready, it should satisfy these release 
    - **Details**:
      - Config struct for scrypt parameters (and potentially other KDFs in the future).
      - Rotation helpers that preserve metadata needed to decrypt older data.
-   - **Status**: Conceptual.
+   - **Status**: Complete for 0.4.0.
 
 2. **Key store abstraction**
    - **Goal**: Formalize a `KeyStore` interface for retrieving and storing versioned keys.
@@ -104,7 +104,7 @@ Before fcrypt is presented as production-ready, it should satisfy these release 
      - Versioned-key lookup for decryption of existing data.
      - Atomic rotation semantics where a backend supports them.
      - Support for external backends through optional adapters.
-   - **Status**: Planned.
+   - **Status**: Complete for 0.4.0.
 
 3. **Envelope encryption API**
    - **Goal**: Support secret managers and KMS systems without requiring them to store every data-encryption key in plaintext.
@@ -113,11 +113,11 @@ Before fcrypt is presented as production-ready, it should satisfy these release 
      - Wrap/unwrap data keys through an adapter-backed key-encryption key.
      - Store metadata needed to locate the wrapping key version.
      - Keep envelope metadata versioned and serializable.
-   - **Status**: Planned.
+   - **Status**: Complete for 0.4.0.
 
 4. **Reference interfaces**
    - **Goal**: Keep adapter contracts small enough for OpenBao, Vault, cloud KMS, and local stores.
-   - **Draft interfaces**:
+   - **Interfaces**:
 
    ```go
    type KeyStore interface {
@@ -133,7 +133,7 @@ Before fcrypt is presented as production-ready, it should satisfy these release 
    }
    ```
 
-   - **Status**: Draft.
+   - **Status**: Complete for 0.4.0.
 
 ## 0.5.0 — Secret Manager and KMS Adapters
 
@@ -148,13 +148,15 @@ Proposed package layout:
 - `github.com/swayedev/fcrypt/adapters/gcpkms`
 - `github.com/swayedev/fcrypt/adapters/azurekeyvault`
 
+The core package already includes `MemoryKeyStore` and `LocalKeyWrapper` as dependency-free reference implementations. The `adapters/memory` package exposes those implementations through the same adapter-shaped import path users can use for external backends.
+
 1. **Memory adapter**
-   - **Goal**: Provide a production-shaped reference adapter with no network dependencies.
+   - **Goal**: Support users who do not have OpenBao, Vault, or a cloud KMS.
    - **Details**:
-     - Useful for tests, examples, and local development.
-     - Implements `KeyStore` and optional `KeyWrapper` when appropriate.
-     - Defines expected adapter behavior for rotation and current-key lookup.
-   - **Status**: Planned.
+     - Re-export the core `MemoryKeyStore` and `LocalKeyWrapper`.
+     - Keep the package dependency-free.
+     - Useful for tests, small deployments, local development, and users who want a consistent adapter import path before moving to an external backend.
+   - **Status**: Complete for 0.4.0.
 
 2. **OpenBao adapter**
    - **Goal**: Support OpenBao-backed key storage and envelope encryption.

@@ -150,9 +150,34 @@ Callers can also use `HashAlgorithm` with `NewHasher` / `NewHash` to select supp
 Key rotation is supported at the API level (key versioning + re-encryption) and is intended to remain simple:
 
 - A `Key` interface to represent versioned keys.
+- `RotationPolicy` for passphrase, algorithm, version, and KDF configuration.
+- `KDFConfig` for scrypt parameter tuning.
+- `KeyStore` for storing and retrieving versioned keys.
 - Rotation helpers that create new keys and allow re-encrypting existing ciphertext.
 
-(Exact KeyStore abstractions and rotation policy configuration are tracked in `ROADMAP.md`.)
+```go
+type KeyStore interface {
+    Put(ctx context.Context, key Key) error
+    Get(ctx context.Context, version string) (Key, error)
+    Current(ctx context.Context) (Key, error)
+    Rotate(ctx context.Context, policy RotationPolicy) (Key, error)
+}
+```
+
+The core package includes `MemoryKeyStore` as a dependency-free reference implementation. It is useful for tests, local development, and as the behavioral contract for external adapters.
+
+### Envelope key wrapping
+
+fcrypt exposes a small key wrapping interface so secret managers and KMS adapters can plug in without changing the core encryption APIs.
+
+```go
+type KeyWrapper interface {
+    WrapKey(ctx context.Context, plaintextKey []byte, opts WrapOptions) (WrappedKey, error)
+    UnwrapKey(ctx context.Context, wrapped WrappedKey) ([]byte, error)
+}
+```
+
+The core package includes `LocalKeyWrapper`, an AES-GCM wrapper backed by a local wrapping key. Production secret-manager adapters should implement the same interface in optional packages.
 
 ## Conventions
 
