@@ -12,6 +12,40 @@ import (
 	"golang.org/x/crypto/sha3"
 )
 
+// HashAlgorithm identifies a supported convenience hash algorithm.
+type HashAlgorithm string
+
+const (
+	HashAlgorithmSHA256     HashAlgorithm = "SHA-256"
+	HashAlgorithmSHA512     HashAlgorithm = "SHA-512"
+	HashAlgorithmSHA3_256   HashAlgorithm = "SHA3-256"
+	HashAlgorithmBLAKE2b256 HashAlgorithm = "BLAKE2b-256"
+	HashAlgorithmBLAKE2b512 HashAlgorithm = "BLAKE2b-512"
+)
+
+// NewHasher returns a new hash.Hash for the requested algorithm.
+func NewHasher(algo HashAlgorithm) (hash.Hash, error) {
+	switch algo {
+	case HashAlgorithmSHA256:
+		return sha256.New(), nil
+	case HashAlgorithmSHA512:
+		return sha512.New(), nil
+	case HashAlgorithmSHA3_256:
+		return sha3.New256(), nil
+	case HashAlgorithmBLAKE2b256:
+		return blake2b.New256(nil)
+	case HashAlgorithmBLAKE2b512:
+		return blake2b.New512(nil)
+	default:
+		return nil, ErrUnsupportedHash
+	}
+}
+
+// NewHash is an alias for NewHasher.
+func NewHash(algo HashAlgorithm) (hash.Hash, error) {
+	return NewHasher(algo)
+}
+
 // Hash calculates the hash of the given io.Reader using the provided hash.Hash.
 func Hash(reader io.Reader, hasher hash.Hash) ([]byte, error) {
 	if _, err := io.Copy(hasher, reader); err != nil {

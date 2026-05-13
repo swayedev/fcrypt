@@ -8,7 +8,7 @@ Before fcrypt is presented as production-ready, it should satisfy these release 
 
 1. **Secure-by-default encryption**
    - Authenticated encryption must be the default for bytes, files, and streaming.
-   - Existing AES-CTR streaming APIs must either be replaced by authenticated chunked AEAD APIs or clearly moved behind legacy/advanced naming.
+   - Existing AES-CTR streaming APIs have been replaced by authenticated chunked AEAD APIs in 0.3.0.
    - Malformed ciphertext, truncated files, huge length headers, wrong keys, and invalid key sizes must return errors without panics or unbounded memory allocation.
 
 2. **Versioned formats and compatibility**
@@ -53,21 +53,21 @@ Before fcrypt is presented as production-ready, it should satisfy these release 
        - *streaming APIs* (io.Reader/io.Writer)
        - *file/container APIs* (versioned file format)
      - Consistent naming for algorithms and modes.
-   - **Status**: Planning.
+   - **Status**: Complete for 0.3.0.
 
 2. **Versioned file/container format**
    - **Goal**: Officially define the encrypted file record/container format, including framing and metadata.
    - **Details**:
      - Add a small header (magic + version + algorithm IDs + nonce size) so formats are self-describing.
      - Provide compatibility for older “nonce||ciphertext” layouts if they ever shipped.
-   - **Status**: In progress.
+   - **Status**: Complete for 0.3.0.
 
 3. **Hash algorithm selection API**
    - **Goal**: Let callers choose SHA-3, SHA-256, or SHA-512 without having to wire hashers manually.
    - **Details**:
      - Introduce a small enum-like type (e.g., `HashAlgorithm`) and `NewHasher(algo)`.
      - Keep the existing `Hash*(..., hash.Hash)` helpers for advanced users.
-   - **Status**: Planned.
+   - **Status**: Complete for 0.3.0.
 
 4. **Stream encryption: define correctness + security guarantees**
    - **Goal**: Decide whether streaming is authenticated by default.
@@ -75,7 +75,7 @@ Before fcrypt is presented as production-ready, it should satisfy these release 
      - Option A: chunked AEAD (recommended) with per-chunk nonce + length framing.
      - Option B: CTR + HMAC (only if explicitly requested; not default).
      - Document the security properties and expected use cases.
-   - **Status**: Research/design.
+   - **Status**: Complete for 0.3.0. Streaming now uses authenticated AES-GCM records by default.
 
 5. **Malformed input hardening**
    - **Goal**: Make decrypt/re-encrypt safe against hostile or corrupted input.
@@ -84,7 +84,7 @@ Before fcrypt is presented as production-ready, it should satisfy these release 
      - Validate file headers before allocating record buffers.
      - Return typed errors for truncated records, unsupported versions, invalid algorithms, and authentication failures.
      - Add tests for corrupted files, massive length headers, wrong keys, empty files, and partial records.
-   - **Status**: Planned.
+   - **Status**: Complete for 0.3.0.
 
 ## 0.4.0 — Key Management & Rotation API
 
@@ -211,7 +211,7 @@ Proposed package layout:
   - Backwards compatibility story for file/container formats.
   - Comprehensive tests across chunking boundaries, large files, and key types.
   - Clear migration guidance for any pre-1.0 format/API changes.
-  - Authenticated streaming or clearly deprecated unauthenticated streaming.
+  - Authenticated streaming.
   - `KeyStore` and `KeyWrapper` interfaces stabilized.
   - At least one production-grade secret manager adapter, preferably OpenBao, available outside the core module.
   - Fuzz tests for parsers/decryptors and malformed encrypted files.

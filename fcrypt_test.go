@@ -2,8 +2,9 @@ package fcrypt_test
 
 import (
 	"bytes"
+	"encoding/binary"
+	"errors"
 	"io"
-	"log"
 	"os"
 	"testing"
 
@@ -193,18 +194,15 @@ func TestStreamEncryptDecrypt(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to generate salt: %v", err)
 	}
-	log.Printf("Salt: %x", salt)
 	key, err := fcrypt.GenerateKey(passphrase, salt, fcrypt.DefaultKeyLength)
 	if err != nil {
 		t.Fatalf("Failed to generate key: %v", err)
 	}
-	log.Printf("Key: %x", key)
 	dataReader := bytes.NewReader(data)
 	encryptedStream, err := fcrypt.StreamEncrypt(dataReader, key)
 	if err != nil {
 		t.Fatalf("Failed to encrypt data stream: %v", err)
 	}
-	log.Printf("Encrypted stream: %x", encryptedStream)
 	encryptedData, err := io.ReadAll(encryptedStream)
 	if err != nil {
 		t.Fatalf("Failed to read encrypted stream: %v", err)
@@ -222,6 +220,91 @@ func TestStreamEncryptDecrypt(t *testing.T) {
 
 	if !bytes.Equal(data, decryptedData) {
 		t.Errorf("Decrypted stream data does not match original data. Expected %s, got %s", data, decryptedData)
+	}
+}
+
+func TestEncryptedFileHasVersionedHeader(t *testing.T) {
+	key := bytes.Repeat([]byte{1}, fcrypt.DefaultKeyLength)
+	input := bytes.NewReader([]byte("hello header"))
+	outputFile := t.TempDir() + "/header.fcrypt"
+
+	if err := fcrypt.EncryptFileToFile(input, key, 4096, outputFile); err != nil {
+		t.Fatalf("EncryptFileToFile() error = %v", err)
+	}
+
+	encrypted, err := os.ReadFile(outputFile)
+	if err != nil {
+		t.Fatalf("ReadFile() error = %v", err)
+	}
+	if !bytes.Equal(encrypted[:6], []byte("FCRYPT")) {
+		t.Fatalf("missing fcrypt magic header: %q", encrypted[:6])
+	}
+	if encrypted[6] != 1 {
+		t.Fatalf("unexpected format version: %d", encrypted[6])
+	}
+}
+
+func TestDecryptFileRejectsOversizedRecord(t *testing.T) {
+	key := bytes.Repeat([]byte{2}, fcrypt.DefaultKeyLength)
+	dir := t.TempDir()
+	encryptedFile := dir + "/oversized.fcrypt"
+	decryptedFile := dir + "/oversized.txt"
+
+	if err := fcrypt.EncryptFileToFile(bytes.NewReader([]byte("hello oversized")), key, 4096, encryptedFile); err != nil {
+		t.Fatalf("EncryptFileToFile() error = %v", err)
+	}
+
+	encrypted, err := os.ReadFile(encryptedFile)
+	if err != nil {
+		t.Fatalf("ReadFile() error = %v", err)
+	}
+	lengthOffset := 10 + 12
+	binary.BigEndian.PutUint32(encrypted[lengthOffset:lengthOffset+4], uint32(fcrypt.MaxCiphertextRecordSize+1))
+	if err := os.WriteFile(encryptedFile, encrypted, 0600); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	err = fcrypt.DecryptFileToFile(encryptedFile, decryptedFile, key, 4096)
+	if !errors.Is(err, fcrypt.ErrInvalidRecordLength) {
+		t.Fatalf("DecryptFileToFile() error = %v, want ErrInvalidRecordLength", err)
+	}
+}
+
+func TestStreamDecryptRejectsTampering(t *testing.T) {
+	key := bytes.Repeat([]byte{3}, fcrypt.DefaultKeyLength)
+	encryptedStream, err := fcrypt.StreamEncrypt(bytes.NewReader([]byte("hello tamper")), key)
+	if err != nil {
+		t.Fatalf("StreamEncrypt() error = %v", err)
+	}
+	encrypted, err := io.ReadAll(encryptedStream)
+	if err != nil {
+		t.Fatalf("ReadAll(encryptedStream) error = %v", err)
+	}
+	encrypted[len(encrypted)-1] ^= 0x01
+
+	decryptedStream, err := fcrypt.StreamDecrypt(bytes.NewReader(encrypted), key)
+	if err != nil {
+		t.Fatalf("StreamDecrypt() error = %v", err)
+	}
+	_, err = io.ReadAll(decryptedStream)
+	if !errors.Is(err, fcrypt.ErrAuthenticationFailed) {
+		t.Fatalf("ReadAll(decryptedStream) error = %v, want ErrAuthenticationFailed", err)
+	}
+}
+
+func TestNewHasher(t *testing.T) {
+	hasher, err := fcrypt.NewHasher(fcrypt.HashAlgorithmSHA256)
+	if err != nil {
+		t.Fatalf("NewHasher() error = %v", err)
+	}
+	got := fcrypt.HashBytesToString([]byte("hello"), hasher)
+	want := fcrypt.HashBytesToStringSHA256([]byte("hello"))
+	if got != want {
+		t.Fatalf("hash mismatch: got %s want %s", got, want)
+	}
+
+	if _, err := fcrypt.NewHasher(fcrypt.HashAlgorithm("unknown")); !errors.Is(err, fcrypt.ErrUnsupportedHash) {
+		t.Fatalf("NewHasher(unknown) error = %v, want ErrUnsupportedHash", err)
 	}
 }
 

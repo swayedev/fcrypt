@@ -18,4 +18,9 @@ const (
 	MinNonceSize = 12
 	// GCMNonceSize is the size of the nonce used in GCM mode.
 	GCMNonceSize = 12
+
+	// DefaultChunkSize is the default plaintext record size for framed APIs.
+	DefaultChunkSize = 64 * 1024
+	// MaxCiphertextRecordSize is the largest ciphertext record accepted by framed decryptors.
+	MaxCiphertextRecordSize = 64 * 1024 * 1024
 )
