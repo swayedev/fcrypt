@@ -22,6 +22,10 @@ func EncryptFileToFileWithContext(ctx context.Context, data io.Reader, key []byt
 		return err
 	}
 
+	if chunkSize <= 0 {
+		return ErrChunkSizeTooSmall
+	}
+
 	block, err := aes.NewCipher(key)
 	if err != nil {
 		return fmt.Errorf("%w: %v", ErrFailedToCreateCipher, err)
@@ -31,7 +35,7 @@ func EncryptFileToFileWithContext(ctx context.Context, data io.Reader, key []byt
 		return fmt.Errorf("%w: %v", ErrFailedToCreateGCM, err)
 	}
 
-	file, err := os.Create(filePath)
+	file, err := os.OpenFile(filePath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0600)
 	if err != nil {
 		return fmt.Errorf("%w: %v", ErrFailedToCreateFile, err)
 	}
@@ -96,7 +100,7 @@ func DecryptFileToFileWithContext(ctx context.Context, encryptedFilePath, decryp
 	}
 	defer encryptedFile.Close()
 
-	decryptedFile, err := os.Create(decryptedFilePath)
+	decryptedFile, err := os.OpenFile(decryptedFilePath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0600)
 	if err != nil {
 		return fmt.Errorf("%w: %v", ErrFailedToCreateFile, err)
 	}
@@ -143,7 +147,7 @@ func DecryptFileToFileWithContext(ctx context.Context, encryptedFilePath, decryp
 
 		plaintext, err := aead.Open(nil, nonce, ciphertext, nil)
 		if err != nil {
-			return fmt.Errorf("%w: %v", ErrFailedToCreateGCM, err)
+			return fmt.Errorf("%w: %v", ErrAuthenticationFailed, err)
 		}
 
 		if _, err := decryptedFile.Write(plaintext); err != nil {
@@ -171,7 +175,7 @@ func ReEncryptFileToFileWithContext(ctx context.Context, encryptedFilePath, decr
 	}
 	defer encryptedFile.Close()
 
-	outFile, err := os.Create(decryptedFilePath)
+	outFile, err := os.OpenFile(decryptedFilePath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0600)
 	if err != nil {
 		return fmt.Errorf("%w: %v", ErrFailedToCreateFile, err)
 	}
@@ -227,7 +231,7 @@ func ReEncryptFileToFileWithContext(ctx context.Context, encryptedFilePath, decr
 
 		plaintext, err := oldAEAD.Open(nil, nonce, ciphertext, nil)
 		if err != nil {
-			return fmt.Errorf("%w: %v", ErrFailedToCreateGCM, err)
+			return fmt.Errorf("%w: %v", ErrAuthenticationFailed, err)
 		}
 
 		if _, err := io.ReadFull(rand.Reader, newNonce); err != nil {

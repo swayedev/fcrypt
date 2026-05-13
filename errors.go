@@ -10,4 +10,6 @@ var (
 	ErrFailedToCreateGCM    = errors.New("failed to create new GCM")
 	ErrFailedToCreateFile   = errors.New("failed to create file")
 	ErrFailedToReadData     = errors.New("failed to read data")
+	ErrAuthenticationFailed = errors.New("authentication failed: ciphertext may be corrupt or tampered")
+	ErrChunkSizeTooSmall    = errors.New("chunk size must be greater than 0")
 )

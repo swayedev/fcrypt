@@ -19,7 +19,7 @@ func GenerateSalt(length int) ([]byte, error) {
 // GenerateKey generates a key using the provided passphrase, salt, and key length.
 // It uses the scrypt key derivation function to derive the key from the passphrase and salt.
 func GenerateKey(passphrase string, salt []byte, keyLength int) ([]byte, error) {
-	if keyLength <= MinKeyLength {
+	if keyLength < MinKeyLength {
 		return nil, ErrKeyLengthTooShort
 	}
 	keyBytes, err := scrypt.Key([]byte(passphrase), salt, ScryptN, ScryptR, ScryptP, keyLength)
